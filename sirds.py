@@ -262,6 +262,9 @@ def main():
 	#showImg(i.filter(imf.GaussianBlur(6)))
 	#saveToFile(i,"guitarra.jpg")
 
+if __name__ == "__main__":
+	main()
+
 """
 Problemas:
 Cuando pasa de poco profundo a profundo, una parte de la superficie se repite hacia la derecha.

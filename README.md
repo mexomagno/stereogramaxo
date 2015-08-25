@@ -17,8 +17,9 @@ Written in python for the sake of simplicity, and relays on the active PIL fork,
 
 ###TODO:
 - Write a decent --help menu
-- Maybe develop a friendlier GUI
+- Hidden-surface removal (removes artifacts)
 - Optimize stereogram generation algorithm
+- Maybe develop a friendlier GUI
 
 ###Coming soon:
 If you take a look at the files on the repository, you'll see *"animated_sirds.py"*.
