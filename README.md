@@ -5,7 +5,7 @@ This is a weekend project I made out of common boredom and genuine love and curi
 Written in python for the sake of simplicity, and relays on the active PIL fork, [**Pillow**](https://python-pillow.github.io/) for image processing.
 
 ###Some Results:
-<img src=https://raw.githubusercontent.com/mexomagno/stereogramaxo/master/tres_tiburones.png" alt="Sharkies" width="750px;">
+<img src="https://raw.githubusercontent.com/mexomagno/stereogramaxo/master/tres_tiburones.png" alt="Sharkies" width="750px;">
 
 ###Features:
 - Random dot patterns and image-based patterns supported
