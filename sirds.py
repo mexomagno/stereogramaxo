@@ -13,6 +13,7 @@ SHIFT_RATIO = 0.3
 DMFOLDER = "depth_maps"
 PATTERNFOLDER = "patterns"
 SAVEFOLDER = "saved"
+LEFT_TO_RIGHT = True # True: Recorre de izq. a derecha. False: Recorre desde el centro a los bordes.
 
 def showImg(i):
 	i.show(command="eog")
@@ -42,15 +43,15 @@ def makeBackground(size = SIZE,filename=""):
 	if filename=="" or filename=="dots":
 		for f in range(i.size[1]):
 			for c in range(pattern_width):
-				if choice([True,False]):
+				if choice([True,False,False,False]):
 					i_pix[c,f]=choice([(255,0,0),(255,255,0),(200,0,255)])
 	# Repetir relleno
-	x = 0
-	rect = (0,0,pattern_width,i.size[1])
-	region = i.crop(rect)
-	while x < i.size[0]:
-		i.paste(region,(x,0,x+pattern_width,i.size[1]))
-		x += pattern_width
+	# x = 0
+	# rect = (0,0,pattern_width,i.size[1])
+	# region = i.crop(rect)
+	# while x < i.size[0]:
+	# 	i.paste(region,(x,0,x+pattern_iwdth,i.size[1]))
+	# 	x += pattern_width
 	return i,imagen
 
 def getRandom(whatfile="depthmap"):
@@ -76,32 +77,42 @@ def makeStereogram(filename,patt="",mode="we"):
 		print("Abortando")
 		exit(1)
 	# Crear patrón base
-	pattern, isimg = makeBackground(dm.size,patt)
+	background, isimg = makeBackground(dm.size,patt)
 	# Usar oversampling si el patrón es una imagen y no random dots
 	if isimg:
 		dm = dm.resize(((int)(dm.size[0]*OVERSAMPLE),(int)(dm.size[1]*OVERSAMPLE)))
-		pattern = pattern.resize(((int)(pattern.size[0]*OVERSAMPLE),(int)(pattern.size[1]*OVERSAMPLE)))
+		background = background.resize(((int)(background.size[0]*OVERSAMPLE),(int)(background.size[1]*OVERSAMPLE)))
 	size = dm.size
 	pattern_width = (int)(size[0]*1.0/PATTERN_FRACTION)
-	pt_pix = pattern.load()
+	pt_pix = background.load()
 	dm_pix = dm.load()
-	# Recorre mapa de profundidad y modifica el patrón
+	ponderador=pattern_width*SHIFT_RATIO # Empíricamente, en un sitio pasaban de 120px en el punto más profundo a 90px (25%)
+	# mover patrón al medio hacia la izquierda
+	if not LEFT_TO_RIGHT:
+		x_medios_bg = background.size[0]/2
+		rect = (0,0,pattern_width,background.size[1])
+		background.paste(background.crop(rect),(x_medios_bg-pattern_width,0,x_medios_bg,background.size[1]))
 	for f in range(size[1]):
-		for c in range(pattern_width,pattern.size[0]):
-			# Leer depthmap y obtener shift
-			ponderador=pattern_width*SHIFT_RATIO # Empíricamente, en un sitio pasaban de 120px en el punto más profundo a 90px (25%)
-			shift  = (dm_pix[(c-pattern_width),f] if mode == "we" else (255-dm_pix[(c-pattern_width),f]))/255.0*ponderador
-			"""
-				Leo depthmap
-				mapeo profundidad a cantidad de shifteo. depth 255 es shifteo máximo (50%% del ancho del patrón?)
-				Shifteo desde la derecha todos los pixeles, hacia la izquierda, una cantidad establecida por el shift calculado.
-			"""
-			# Shiftear pixeles
-			pt_pix[c,f]=pt_pix[c-pattern_width+shift,f]
-	# Retorna stereograma
-	if isimg:
-		pattern = pattern.resize(((int)(pattern.size[0]/OVERSAMPLE),(int)(pattern.size[1]/OVERSAMPLE)),im.LANCZOS) # NEAREST, BILINEAR, BICUBIC, LANCZOS
-	return pattern
+		if LEFT_TO_RIGHT:
+			for c in range(pattern_width,background.size[0]):
+				# De izquierda a derecha
+				shift  = (dm_pix[(c-pattern_width),f] if mode == "we" else (255-dm_pix[(c-pattern_width),f]))/255.0*ponderador
+				pt_pix[c,f]=pt_pix[c-pattern_width+shift,f]
+		else:
+			for c in range(x_medios_bg,background.size[0]):
+				# Hacia el lado derecho
+				shift  = (dm_pix[(c-pattern_width),f] if mode == "we" else (255-dm_pix[(c-pattern_width),f]))/255.0*ponderador
+				pt_pix[c,f]=pt_pix[c-pattern_width+shift,f]
+			for c in range(x_medios_bg-1,pattern_width-1,-1):
+				# Hacia la izquierda
+				shift  = (dm_pix[c,f] if mode == "we" else (255-dm_pix[c,f]))/255.0*ponderador
+				pt_pix[c,f]=pt_pix[c+pattern_width-shift,f]
+	if not LEFT_TO_RIGHT:
+		background.paste(background.crop((pattern_width,0,2*pattern_width,background.size[1])),rect)
+	#Retorna stereograma
+	if isimg: # Regresa del oversampling
+		background = background.resize(((int)(background.size[0]/OVERSAMPLE),(int)(background.size[1]/OVERSAMPLE)),im.LANCZOS) # NEAREST, BILINEAR, BICUBIC, LANCZOS
+	return background
 
 def makeDepthText(text, depth=50,fontsize=50, font="freefont/FreeSansBold"):
 	"""
@@ -270,6 +281,7 @@ Problemas:
 Cuando pasa de poco profundo a profundo, una parte de la superficie se repite hacia la derecha.
 La explicación de internet es que son puntos que el ojo derecho no debería ser capaz de ver, pero los estamos considerando igual.
 Es reparable... pero cómo?
+Esto se llama Hidden Surface Removal.
 
 
 PENDIENTE:
