@@ -3,13 +3,12 @@
 from __future__ import print_function
 # This "PIL" refers to Pillow, the PIL fork. Check https://pillow.readthedocs.io/en/3.3.x
 from PIL import Image as im, ImageDraw as imd
-from random import choice
+from random import choice, random
 import os
 import argparse as AP
 # GUI
 from Tkinter import *
 import tkFileDialog, tkFont
-
 
 # Program info
 PROGRAM_VERSION="2.0"
@@ -42,6 +41,9 @@ DMFOLDER = "depth_maps"
 PATTERNFOLDER = "patterns"
 SAVEFOLDER = "saved"
 LEFT_TO_RIGHT = False # True: Recorre de izq. a derecha. False: Recorre desde el centro a los bordes.
+DOT_DRAW_PROBABILITY=0.75 # Decides how often a random dot is drawn
+SMOOTH_DEPTHMAP = True
+SMOOTH_FACTOR = 1.8
 
 def showImg(i):
     i.show(command="eog")
@@ -71,7 +73,7 @@ def makeBackground(size = SIZE,filename=""):
     if filename=="" or filename=="dots":
         for f in range(i.size[1]):
             for c in range(pattern_width):
-                if choice([True,False,False,False]):
+                if random() < DOT_DRAW_PROBABILITY: #choice([True,False,False,False]):
                     i_pix[c,f]=choice([(255,0,0),(255,255,0),(200,0,255)])
     # Repetir relleno
     # x = 0
@@ -104,6 +106,10 @@ def makeStereogram(filename,patt="",mode="we"):
     if (dm == None):
         print("Abortando")
         exit(1)
+    if SMOOTH_DEPTHMAP:
+        from PIL import ImageFilter as imf
+        dm = dm.filter(imf.GaussianBlur(SMOOTH_FACTOR))
+
     # Crear patrón base
     background, isimg = makeBackground(dm.size,patt)
     # Usar oversampling si el patrón es una imagen y no random dots
@@ -221,7 +227,7 @@ def loadFile(name,type=''):
     return i
 
 def showHelp(mensaje = ""):
-    helptext = "USO: asstoasstoass"
+    helptext = ""
     if mensaje!="":
         helptext = "Error: {}\n\n{}".format(mensaje,helptext)
     print(helptext)
@@ -342,7 +348,9 @@ class SettingsWindow:
         # fonts
         section_title_font = tkFont.Font(family="Helvetica", size = 12, weight ="bold")
         chosen_file_font = tkFont.Font(family="Helvetica", size=10)
-
+        generate_button_font = tkFont.Font(family="Helvetica", size=13, weight = "bold")
+        generate_button_bg_color = "#555555"
+        generate_button_fg_color = "#ffffff"
         # depthmap settings
         choose_depthmap_label = Label(depthmap_frame, text = "Depthmap selection", font=section_title_font)
         choose_depthmap_label.pack()
@@ -388,17 +396,17 @@ class SettingsWindow:
         outputname_label = Label(outputname_frame, text = "Saving", font=section_title_font)
         outputname_label.pack()
         self.save_button = Button(outputname_frame, text="Save as...", command=self.askSaveAs)
-        self.save_button.pack()
+        self.save_button.pack(side=LEFT)
         self.last_outputname_chosen = StringVar()
         self.last_outputname_chosen.set("")
         self.chosen_outputname_label = Label(outputname_frame, textvariable=self.last_outputname_chosen, font=chosen_file_font, fg=SettingsWindow.COLOR_CHOSEN_FILE)
-        self.chosen_outputname_label.pack()
+        self.chosen_outputname_label.pack(side=LEFT)
         self.dont_save_variable = BooleanVar()
         self.dont_save_variable.set(self.DEFAULT_DONTSAVE_VALUE)
         self.dont_save_checkbox = Checkbutton(outputname_frame, text="I don't wanna save it!", variable = self.dont_save_variable, command=self.updateSaveButton)
-        self.dont_save_checkbox.pack()
+        self.dont_save_checkbox.pack(side=RIGHT)
         #
-        b = Button(self.window_root, text = "Generate!", command = self.setUserSettings)
+        b = Button(self.window_root, text = "Generate!", command = self.setUserSettings, font=generate_button_font, bg = generate_button_bg_color, fg=generate_button_fg_color)
         b.pack(side = BOTTOM)
 
         self.depthmap_file_path = ""
@@ -596,7 +604,7 @@ Diseño de argumentos:
 
 def main():
     opts = askUserForSettings()
-    if opts["depthmap"] == "":
+    if not "depthmap" in opts or opts["depthmap"] == "":
         showHelp("Debe especificar un archivo de mapa de profundidad!")
     #depthmap=makeDepthText("Chingeki", 60, 120)
     #saveToFile(depthmap,"chingeki.png")
@@ -624,7 +632,11 @@ Es reparable... pero cómo?
 Esto se llama Hidden Surface Removal.
 """
 
-
+# TODO: Uncouple strings and common definitions, remove hardcoded messages... that sort of stuff
+# TODO: Translate everything to english
+# TODO: Add Text generation option
+# TODO: Expand grayscale between the two extremes (enhances near-flat depth maps)
+# TODO: Try to enlarge grayscale depth
 
 # Miembros de los objetos Image:
 # 	format | Formato de la imagen (PNG, JPEG, BMP...)
