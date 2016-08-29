@@ -16,6 +16,7 @@ Install the required packages, then run the code with
 ```
 
 Choose your options on the GUI and you're done!
+
 <img src="https://raw.githubusercontent.com/mexomagno/stereogramaxo/master/neat_gui.png" alt="Neat GUI">
 
 ###Some Results:
