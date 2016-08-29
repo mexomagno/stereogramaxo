@@ -41,7 +41,7 @@ DMFOLDER = "depth_maps"
 PATTERNFOLDER = "patterns"
 SAVEFOLDER = "saved"
 LEFT_TO_RIGHT = False # True: Recorre de izq. a derecha. False: Recorre desde el centro a los bordes.
-DOT_DRAW_PROBABILITY=0.75 # Decides how often a random dot is drawn
+DOT_DRAW_PROBABILITY=0.4 # Decides how often a random dot is drawn
 SMOOTH_DEPTHMAP = True
 SMOOTH_FACTOR = 1.8
 
