@@ -481,7 +481,7 @@ class SettingsWindow:
         if dm_selection == SettingsWindow.DEPTHMAP_FILE:
             if not dm_file_path:
                 self.chosen_depthmap_label.config(fg = SettingsWindow.COLOR_ERROR)
-                self.last_depthmap_chosen.set("SELECT A FUCKING FILE FIRST, PLEASE :)")
+                self.last_depthmap_chosen.set("First select a file, please :)")
                 return
             else:
                 user_settings["depthmap"] = dm_file_path
@@ -496,7 +496,7 @@ class SettingsWindow:
         if pa_selection == SettingsWindow.PATTERN_FILE:
             if not pa_file_path:
                 self.chosen_pattern_label.config(fg=SettingsWindow.COLOR_ERROR)
-                self.last_pattern_chosen.set("SELECT A FUCKING FILE FIRST, PLEASE :)")
+                self.last_pattern_chosen.set("First select a file, please :)")
                 return
             else:
                 user_settings["pattern"] = pa_file_path
@@ -516,7 +516,7 @@ class SettingsWindow:
                 user_settings["output"] = ""
             else:
                 self.chosen_outputname_label.config(fg=SettingsWindow.COLOR_ERROR)
-                self.last_outputname_chosen.set("Select an output name please Sir. Please.")
+                self.last_outputname_chosen.set("Select an output name please, kind sir")
                 return
         print("""
 Final Settings:
