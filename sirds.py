@@ -226,76 +226,6 @@ def loadFile(name,type=''):
         return None
     return i
 
-def showHelp(mensaje = ""):
-    helptext = ""
-    if mensaje!="":
-        helptext = "Error: {}\n\n{}".format(mensaje,helptext)
-    print(helptext)
-    exit(0)
-
-def checkArgs():
-    """
-        Retorna tupla con opciones:
-            (depthmap = <filename>,
-             pattern  = <filename>,
-             output   = <filename>)
-        En caso de encontrar opción "help", inmediatamente se muestra ayuda y se deja de parsear.
-        En caso de especificar --random, queda claro en "depthmap" y "pattern".
-    """
-    valid_args = {	"depthmap"	:["-d","-f","-dm","--depthmap","--depth-map"], 	# Parámetro: Nombre de archivo
-                    "pattern"	:["-p","--pattern"],							# Parámetro: Nombre de archivo
-                    "output"	:["-o","--output"],								# Parámetro: Nombre de archivo
-                    "cross-eyed":["-ce","--cross-eyed"],						# Parámetro: Nada
-                    "random"	:["--random","-R"],								# Parámetro: Nada
-                    "help"		:["-h","--help","-?"]}							# Parámetro: Nada
-    already_set= {	"depthmap"	: False,
-                    "pattern"	: False,
-                    "output"	: False,
-                    "cross-eyed": False}
-    # Comportamiento default
-    opts = {	"depthmap"	:"",		# Sin especificar
-                "pattern"	:"dots",	# Patrón de puntos
-                "output"	:"",		# Sin especificar
-                "cross-eyed":False}		# Wall-eyed
-    args = sys.argv
-    # Checkear que argumentos son válidos
-    # 	- Ver que argumento es válido
-    #	- Ver que parámetro del argumento existe y es válido
-    i=1 # Indice del argumento
-    while i < len(args):
-        if args[i] in valid_args["help"]:
-            showHelp()
-        if args[i] in valid_args["random"]:
-            if already_set["depthmap"] or already_set["pattern"]:
-                showHelp("Múltiple definición para 'depthmap' y/o 'pattern'")
-            opts["depthmap"] = opts["pattern"] = "R"
-            already_set["depthmap"] = already_set["pattern"] = True
-            i+=1
-            continue
-        if args[i] in valid_args["cross-eyed"]:
-            if already_set["cross-eyed"]:
-                showHelp("Múltiple declaración para '{}'".format(args[i]))
-            opts["cross-eyed"] = True
-            already_set["cross-eyed"] = True
-            i+=1
-            continue
-        # Si no es argumento válido
-        if args[i] not in (valid_args["depthmap"]+valid_args["pattern"]+valid_args["output"]):
-            showHelp("Argumento desconocido: '{}'".format(args[i]))
-        # Si no entregó parámetro para el argumento, error
-        if i == len(args)-1 or args[i+1] in (valid_args["depthmap"]+valid_args["pattern"]+valid_args["output"]+valid_args["random"]+valid_args["help"]+valid_args["cross-eyed"]):
-            showHelp("Debe especificar parámetro para '{}'".format(args[i]))
-        # Ver qué parámetro se está seteando
-        for opt in ["depthmap","pattern","output"]:
-            if args[i] in valid_args[opt]:
-                if already_set[opt]:
-                    showHelp("Múltiple declaración para '{}'".format(args[i]))
-                opts[opt] = args[i+1]
-                already_set[opt] = True
-                break
-        i+=2
-    return opts
-
 user_settings = dict()
 
 class SettingsWindow:
@@ -314,12 +244,18 @@ class SettingsWindow:
     WINDOW_POSITION_Y = 30
     COLOR_ERROR = "#ff0000"
     COLOR_CHOSEN_FILE ="#002288"
+    FONT_SECTION_TITLE = {"family":"Helvetica", "size":12, "weight":"bold"}
+    FONT_CHOSEN_FILE = {"family":"Helvetica", "size":10, "weight":"normal"}
+    FONT_GENERATE_BUTTON = {"family":"Helvetica", "size":13, "weight":"bold"}
+    FONT_SECTION_SUBTITLE = {"family":"Helvetica", "size": FONT_SECTION_TITLE["size"]-2, "weight":"bold"}
     # DEFAULTS
     DEFAULT_DEPTHMAP_SELECTION = DEPTHMAP_SHARK
     DEFAULT_PATTERN_SELECTION = PATTERN_DOTS
     DEFAULT_MODE_SELECTION = MODE_WALLEYED
     DEFAULT_DONTSAVE_VALUE = False
     DEFAULT_DEPTHMAP_FILE = "depth_maps/tiburon.png"
+    DEFAULT_DEPTH_MULTIPLIER = 1
+    DEFAULT_DEPTHMAP_GAUSSIAN_BLUR = 0
     DEPTHMAP_OPTIONS = [
         ("Shark", DEPTHMAP_SHARK),
         ("Random", DEPTHMAP_RANDOM),
@@ -332,86 +268,133 @@ class SettingsWindow:
     ]
     def __init__(self, parent):
         self.window_root = Toplevel(parent)
-        self.window_root.geometry("+{}+{}".format(SettingsWindow.WINDOW_POSITION_X, SettingsWindow.WINDOW_POSITION_Y))
+        self.window_root.geometry("+{}+{}".format(self.WINDOW_POSITION_X, self.WINDOW_POSITION_Y))
         self.window_root.title = "Settings"
         main_frame = Frame(self.window_root)
         main_frame.pack()
         # main elements
         depthmap_frame = Frame(self.window_root)
-        depthmap_frame.pack()
+        depthmap_frame.pack(anchor=E)
         pattern_frame = Frame(self.window_root)
-        pattern_frame.pack()
+        pattern_frame.pack(anchor=E)
         mode_frame = Frame(self.window_root)
         mode_frame.pack()
-        outputname_frame = Frame(self.window_root)
-        outputname_frame.pack()
-        # fonts
-        section_title_font = tkFont.Font(family="Helvetica", size = 12, weight ="bold")
-        chosen_file_font = tkFont.Font(family="Helvetica", size=10)
-        generate_button_font = tkFont.Font(family="Helvetica", size=13, weight = "bold")
+        saving_settings_frame = Frame(self.window_root)
+        saving_settings_frame.pack()
+        advanced_settings_frame = Frame(self.window_root)
+        advanced_settings_frame.pack()
+
         generate_button_bg_color = "#555555"
         generate_button_fg_color = "#ffffff"
         # depthmap settings
-        choose_depthmap_label = Label(depthmap_frame, text = "Depthmap selection", font=section_title_font)
-        choose_depthmap_label.pack()
-        self.depthmap_selection = IntVar()
-        self.depthmap_selection.set(SettingsWindow.DEFAULT_DEPTHMAP_SELECTION)
-        for text, option in SettingsWindow.DEPTHMAP_OPTIONS:
-            b = Radiobutton(depthmap_frame, text = text, variable = self.depthmap_selection, value = option, command=self.updateDepthmapBrowseButton)
-            b.pack(anchor = NW, side = LEFT)
-        self.depthmap_browse_button = Button(depthmap_frame, text = "Browse...", command = self.askOpenDepthmapFile, state=DISABLED)
-        self.depthmap_browse_button.pack(anchor = NW, side = LEFT)
-        self.last_depthmap_chosen = StringVar()
-        self.last_depthmap_chosen.set("")
-        self.chosen_depthmap_label = Label(depthmap_frame, textvariable=self.last_depthmap_chosen, font=chosen_file_font, fg=SettingsWindow.COLOR_CHOSEN_FILE)
-        self.chosen_depthmap_label.pack()
-
+        self.addDepthmapSettings(depthmap_frame)
         # Pattern settings
-        choose_pattern_label = Label(pattern_frame, text = "Pattern selection", font=section_title_font)
-        choose_pattern_label.pack()
-        self.pattern_selection = IntVar()
-        self.pattern_selection.set(SettingsWindow.DEFAULT_PATTERN_SELECTION)
-        for text, option in SettingsWindow.PATTERN_OPTIONS:
-            b = Radiobutton(pattern_frame, text = text, variable = self.pattern_selection, value = option, command=self.updatePatternBrowseButton)
-            b.pack(anchor = NW, side = LEFT)
-        self.pattern_browse_button = Button(pattern_frame, text = "Browse...", command = self.askOpenPatternFile, state=DISABLED)
-        self.pattern_browse_button.pack(anchor = NW, side = LEFT)
-        self.last_pattern_chosen = StringVar()
-        self.last_pattern_chosen.set("")
-        self.chosen_pattern_label = Label(pattern_frame, textvariable= self.last_pattern_chosen, font=chosen_file_font, fg=SettingsWindow.COLOR_CHOSEN_FILE)
-        self.chosen_pattern_label.pack()
-
+        self.addPatternSettings(pattern_frame)
         # Mode selection
-        choose_mode_label = Label(mode_frame, text = "3D Viewing Mode", font=section_title_font)
-        choose_mode_label.pack()
-        self.mode_selection = IntVar()
-        self.mode_selection.set(SettingsWindow.DEFAULT_MODE_SELECTION)
-        b = Radiobutton(mode_frame, text = "Wall-eyed", variable = self.mode_selection, value = SettingsWindow.MODE_WALLEYED, indicatoron=0)
-        b.pack(side = LEFT)
-        b.select()
-        b2 = Radiobutton(mode_frame, text = "Cross-eyed", variable = self.mode_selection, value = SettingsWindow.MODE_CROSSEYED, indicatoron=0)
-        b2.pack(side = LEFT)
-
+        self.add3dModeSettings(mode_frame)
         # output filename
-        outputname_label = Label(outputname_frame, text = "Saving", font=section_title_font)
-        outputname_label.pack()
-        self.save_button = Button(outputname_frame, text="Save as...", command=self.askSaveAs)
-        self.save_button.pack(side=LEFT)
-        self.last_outputname_chosen = StringVar()
-        self.last_outputname_chosen.set("")
-        self.chosen_outputname_label = Label(outputname_frame, textvariable=self.last_outputname_chosen, font=chosen_file_font, fg=SettingsWindow.COLOR_CHOSEN_FILE)
-        self.chosen_outputname_label.pack(side=LEFT)
-        self.dont_save_variable = BooleanVar()
-        self.dont_save_variable.set(self.DEFAULT_DONTSAVE_VALUE)
-        self.dont_save_checkbox = Checkbutton(outputname_frame, text="I don't wanna save it!", variable = self.dont_save_variable, command=self.updateSaveButton)
-        self.dont_save_checkbox.pack(side=RIGHT)
-        #
-        b = Button(self.window_root, text = "Generate!", command = self.setUserSettings, font=generate_button_font, bg = generate_button_bg_color, fg=generate_button_fg_color)
+        self.addSavingSettings(saving_settings_frame)
+        # Advanced settings
+        self.addAdvancedSettings(advanced_settings_frame)
+
+        # Generate button
+        b = Button(self.window_root, text = "Generate!", command = self.setUserSettings, font=self.FONT_GENERATE_BUTTON, bg = generate_button_bg_color, fg=generate_button_fg_color)
         b.pack(side = BOTTOM)
 
         self.depthmap_file_path = ""
         self.pattern_file_path = ""
         self.output_filepath = ""
+
+    # TKinter element generators
+    def newSectionTitle(self, root, text):
+        return Label(root, text=text, font=self.makeFont(self.FONT_SECTION_TITLE))
+
+    def makeFont(self, font):
+        return tkFont.Font(family=font["family"], size=font["size"], weight=font["weight"])
+
+    def addDepthmapSettings(self, root):
+        self.newSectionTitle(root, "Depthmap selection").pack()
+        self.depthmap_selection = IntVar()
+        self.depthmap_selection.set(self.DEFAULT_DEPTHMAP_SELECTION)
+        for text, option in self.DEPTHMAP_OPTIONS:
+            b = Radiobutton(root, text=text, variable=self.depthmap_selection, value=option,
+                            command=self.updateDepthmapBrowseButton)
+            b.pack(anchor=NW, side=LEFT)
+        self.depthmap_browse_button = Button(root, text="Browse...", command=self.askOpenDepthmapFile,
+                                             state=DISABLED)
+        self.depthmap_browse_button.pack(side=LEFT)
+        self.last_depthmap_chosen = StringVar()
+        self.last_depthmap_chosen.set("")
+        self.chosen_depthmap_label = Label(root, textvariable=self.last_depthmap_chosen,
+                                           font=self.makeFont(self.FONT_CHOSEN_FILE),
+                                           fg=self.COLOR_CHOSEN_FILE)
+        self.chosen_depthmap_label.pack()
+    def addPatternSettings(self, root):
+        self.newSectionTitle(root, "Pattern selection").pack()
+        self.pattern_selection = IntVar()
+        self.pattern_selection.set(self.DEFAULT_PATTERN_SELECTION)
+        for text, option in self.PATTERN_OPTIONS:
+            b = Radiobutton(root, text=text, variable=self.pattern_selection, value=option,
+                            command=self.updatePatternBrowseButton)
+            b.pack(anchor=NW, side=LEFT)
+        self.pattern_browse_button = Button(root, text="Browse...", command=self.askOpenPatternFile,
+                                            state=DISABLED)
+        self.pattern_browse_button.pack(anchor=NW, side=LEFT)
+        self.last_pattern_chosen = StringVar()
+        self.last_pattern_chosen.set("")
+        self.chosen_pattern_label = Label(root, textvariable=self.last_pattern_chosen,
+                                          font=self.makeFont(self.FONT_CHOSEN_FILE),
+                                          fg=self.COLOR_CHOSEN_FILE)
+        self.chosen_pattern_label.pack()
+    def add3dModeSettings(self, root):
+        self.newSectionTitle(root, "3D Viewing Mode").pack()
+        self.mode_selection = IntVar()
+        self.mode_selection.set(SettingsWindow.DEFAULT_MODE_SELECTION)
+        b = Radiobutton(root, text="Wall-eyed", variable=self.mode_selection, value=self.MODE_WALLEYED,
+                        indicatoron=0)
+        b.pack(side=LEFT)
+        b.select()
+        b2 = Radiobutton(root, text="Cross-eyed", variable=self.mode_selection,
+                         value=SettingsWindow.MODE_CROSSEYED, indicatoron=0)
+        b2.pack(side=LEFT)
+
+    def addSavingSettings(self, root):
+        self.newSectionTitle(root, "Saving").pack()
+        self.save_button = Button(root, text="Save as...", command=self.askSaveAs)
+        self.save_button.pack(side=LEFT)
+        self.last_outputname_chosen = StringVar()
+        self.last_outputname_chosen.set("")
+        self.chosen_outputname_label = Label(root, textvariable=self.last_outputname_chosen,
+                                          font=self.makeFont(self.FONT_CHOSEN_FILE),
+                                          fg=self.COLOR_CHOSEN_FILE)
+        self.chosen_outputname_label.pack(side=LEFT)
+        self.dont_save_variable = BooleanVar()
+        self.dont_save_variable.set(self.DEFAULT_DONTSAVE_VALUE)
+        self.dont_save_checkbox = Checkbutton(root, text="I don't wanna save it!",
+                                           variable=self.dont_save_variable, command=self.updateSaveButton)
+        self.dont_save_checkbox.pack(side=RIGHT)
+
+    def addAdvancedSettings(self, root):
+        self.newSectionTitle(root, "Advanced Settings").pack()
+        # Depthmap smoothness
+        depthmap_smoothness_frame = Frame(root)
+        depthmap_smoothness_frame.pack(anchor=E)
+        Label(depthmap_smoothness_frame, text = "Depthmap gaussian blur level", font=self.makeFont(self.FONT_SECTION_SUBTITLE)).pack(side=LEFT)
+        self.depthmap_smoothness_scale = Scale(depthmap_smoothness_frame, from_=0, to=10, orient=HORIZONTAL, resolution=0.1)
+        self.depthmap_smoothness_scale.pack(side=LEFT)
+        self.depthmap_smoothness_scale.set(self.DEFAULT_DEPTHMAP_GAUSSIAN_BLUR)
+        # Depth multiplirer
+        depth_multiplier_frame = Frame(root)
+        depth_multiplier_frame.pack(anchor=E)
+        Label(depth_multiplier_frame, text="Depth multiplier", font=self.makeFont(self.FONT_SECTION_SUBTITLE)).pack(side=LEFT)
+        self.depth_multiplier_scale = Scale(depth_multiplier_frame, from_=0, to=1, orient=HORIZONTAL, resolution=0.1)
+        self.depth_multiplier_scale.pack(side=LEFT)
+        self.depth_multiplier_scale.set(self.DEFAULT_DEPTH_MULTIPLIER)
+        # Dot colors
+
+
+
+    ## Some logic
 
     def updateSaveButton(self):
         if self.dont_save_variable.get():
@@ -526,6 +509,13 @@ class SettingsWindow:
                 self.chosen_outputname_label.config(fg=SettingsWindow.COLOR_ERROR)
                 self.last_outputname_chosen.set("Select an output name please, kind sir")
                 return
+
+        # Advanced settings
+        # Depthmap gaussian blur
+        global SMOOTH_FACTOR
+        SMOOTH_FACTOR = self.depthmap_smoothness_scale.get()
+        # Depth multiplier
+
         print("""
 Final Settings:
     Depthmap:   {},
@@ -548,66 +538,8 @@ def askUserForSettings():
     root.destroy()
     return user_settings
 
-
-def checkArgs2():
-    """
-    This method checks the input arguments using argparse, and returns a settings dictionary
-
-
-Diseño de argumentos:
-    Opción R es Random. Elige de los que ya existen.
-    -f -d --depthmap <filename>|R	: Especifica path al depthmap a usar
-    -p --pattern <filename>|dots|R	: Especifica path al patrón a usar o si quiere puntos
-    -h --help	: Muestra ayuda. Se ignora el resto de las opciones.
-    -R --random : Equivalente a --depthmap R --pattern R
-    -o <filename> : Guarda archivo generado como "filename". La extensión de este parámetro especifica el formato. De no incluirse, se usa la default 'png'.
-    -m --mode : Modo wall-eyed o cross-eyed (we, ce). El típico es wall-eyed.
-    """
-
-    parser = AP.ArgumentParser(
-        description = "Yet another stereogram generator",
-        epilog = "Version {}".format(PROGRAM_VERSION))
-    parser.add_argument("-d", "--depthmap", nargs=1, metavar="DEPTHMAP",
-                        help="""
-                        Specifies the main 3D image's depthmap to be used. You can specify the absolute path to the file
-                        or 'R' for a random image""")
-    parser.add_argument("-p", "--pattern", nargs=1, type=str, metavar="PATTERN" ,
-                        help="""
-                        Specifies the image to use as a pattern. You can specify the file absolute path, 'R' for letting
-                        the program choose one for you, or 'D' for a dot pattern
-                        """)
-    parser.add_argument("-r", "--random", action="store_true",
-                        help="""
-                        Use a random pattern and a random depthmap
-                        """)
-    parser.add_argument("-o", "--output", nargs=1, metavar="OUTPUT",
-                        help="""
-                        Specifies the output file name. Here you also define the file format. If no file format is
-                        entered, {} will be used
-                        """.format(DEFAULT_OUTPUT_FILE_FORMAT.upper()))
-    parser.add_argument("-w", "--wall-eyed", nargs=1, metavar="3D_MODE",
-                        help="""
-                        Generates a Wall-eyed stereogram. If not specified, this mode will be used.
-                        Incompatible with the -c option.
-                        """)
-    parser.add_argument("-c", "--cross-eyed", nargs=1, metavar="3D_MODE",
-                        help="""
-                        Generates a Cross-eyed stereogram. Incompatible with the -w option.
-                        """)
-    args = parser.parse_args()
-    # CHECK ARGUMENTS
-    print (vars(args))
-    # if no parameters are specified, ask for depthmap:
-    exit()
-
-
-
 def main():
     opts = askUserForSettings()
-    if not "depthmap" in opts or opts["depthmap"] == "":
-        showHelp("Debe especificar un archivo de mapa de profundidad!")
-    #depthmap=makeDepthText("Chingeki", 60, 120)
-    #saveToFile(depthmap,"chingeki.png")
     print("Generando...")
     i = makeStereogram(opts["depthmap"],opts["pattern"],("ce" if opts["cross-eyed"] else "we"))
     print("Mostrando...")
@@ -617,9 +549,6 @@ def main():
         output = saveToFile(i,opts["output"])
         if output == None:
             print("Oops! Couldn't save file!!")
-    #from PIL import ImageFilter as imf
-    #showImg(i.filter(imf.GaussianBlur(6)))
-    #saveToFile(i,"guitarra.jpg")
 
 if __name__ == "__main__":
     main()
@@ -637,45 +566,6 @@ Esto se llama Hidden Surface Removal.
 # TODO: Add Text generation option
 # TODO: Expand grayscale between the two extremes (enhances near-flat depth maps)
 # TODO: Try to enlarge grayscale depth
-
-# Miembros de los objetos Image:
-# 	format | Formato de la imagen (PNG, JPEG, BMP...)
-# 	size | Tupla con tamaño de la imagen (x, y)
-# 	mode | Sistema de color (RGB, CMYK, L (bco y negro), ...)
-
-
-# Métodos importantes de Image:
-#	(out) Image.new(modo, tamaño, color) | retorna imagen nueva con parámetros especificados.
-#	show(<objeto>) | muestra la imagen
-#	open(<archivo>) | Abre la imagen. Independiente de la extensión
-#	save(<archivo>) | Guarda la imagen. Automáticamente intenta convertir si se setea un nombre con una extensión determinada. Se puede atrapar IOError si no se puede convertir. Se puede además entregar como segundo argumento un formato determinado.
-#	thumbnail((sizex,sizey)) | Crea thumbnail 
-# 	(region) crop((1x,1y,2x,2y)) | Corta rectángulo a partir de la 4 tupla que lo define. Retorna imagen recortada
-# 	paste(region, caja(1x,1y,3x,2y)) | pega región. Puede recibir argumento de alpha (0 a 255).
-#	(banda1, banda2, banda3) split() | divide imagen multibanda (RGB por ejemplo) en imágenes independientes. Retorna tupla.
-#??? 	<region> transpose(<macro>) | Aplica cierta transformación. Transpose(ROTATE_90) es equivalente a rotate(90).
-#	transform(<??>) | Forma general. Aplica transformación a imagen.
-#	(out) resize((x,y)) | cambia tamaño. Retorna nueva imagen
-# 	(out) rotate(<grados>) | Rota en sexagesimales. Retorna resultado.
-#	(out) convert(<string de formato>) | Convierte entre formatos. Retorna resultado.
-#   (banda1,banda2,banda3) getpixel((x, y)) | retorna un pixel
-# 	putpixel((x,y), value) | modifica pixel. Value depende de las bandas. Lento, recomiendan usar módulo ImageDraw.
-# 	(out) point(lookup_table, mode=None) | Mapea imagen aplicando lookup_table a los pixeles.
-# Se pueden aplicar filtros
-# Se pueden aplicar point operations 
-
-# Macros
-#	Image.FLIP_LEFT_RIGHT
-#	Image.FLIP_TOP_BOTTOM
-# 	Image.ROTATE_90
-# 	Image.ROTATE_180
-# 	Image.ROTATE_270
-
-# Más info en http://pillow.readthedocs.org/handbook/tutorial.html
-
-#### Para dibujar, existe el módulo ImageDraw.
-# Hay que crear un objeto ImageDraw asociado a la imagen. Luego llamar los métodos.
-
-# Métodos importantes:
-# tiene para dibujar: line, ellipse, point, polygon, rectangle, pieslice, chord, bitmap, arc, shape, text, multiline_text, textsize.
-# point((x,y), fill=None) | pixel en x, y de color fill, siguiendo formato soportado de colores de Pillow.
+# TODO: Show advanced menu
+# TODO: Make random pattern option include dots
+# TODO: Fix Cross-eyed bug
