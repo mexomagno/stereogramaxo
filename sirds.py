@@ -44,7 +44,7 @@ LEFT_TO_RIGHT = False # True: Recorre de izq. a derecha. False: Recorre desde el
 DOT_DRAW_PROBABILITY=0.4 # Decides how often a random dot is drawn
 SMOOTH_DEPTHMAP = True
 SMOOTH_FACTOR = 1.8
-
+DEFAULT_DEPTHTEXT_FONT = "freefont/FreeSansBold"
 def showImg(i):
     i.show(command="eog")
 
@@ -92,7 +92,7 @@ def getRandom(whatfile="depthmap"):
     folder = (DMFOLDER if whatfile == "depthmap" else PATTERNFOLDER)
     return folder + "/" + choice(os.listdir(folder))
 
-def makeStereogram(filename,patt="",mode="we"):
+def makeStereogram(options, patt="",mode="we"):
     """
     Recibe: Depth Map, patrón a usar, modo {we,ce} (wall-eyed, cross-eyed)
     Retorna: Nada. El resultado está en la imagen recibida.
@@ -102,7 +102,12 @@ def makeStereogram(filename,patt="",mode="we"):
 
     """
     # Cargar depthmap
-    dm = loadFile((getRandom("depthmap") if filename == "R" else filename),'L')
+    patt = "" if "pattern" not in options else options["pattern"]
+    mode = "we" if "cross-eyed" not in options else ("ce" if options["cross-eyed"] else "we")
+    if options["depthmap"] == "text":
+        dm = makeDepthText(options["text"]["value"], options["text"]["depth"], options["text"]["fontsize"], DEFAULT_DEPTHTEXT_FONT)
+    else:
+        dm = loadFile((getRandom("depthmap") if options["depthmap"] == "R" else options["depthmap"]),'L')
     if (dm == None):
         print("Abortando")
         exit(1)
@@ -148,7 +153,7 @@ def makeStereogram(filename,patt="",mode="we"):
         background = background.resize(((int)(background.size[0]/OVERSAMPLE),(int)(background.size[1]/OVERSAMPLE)),im.LANCZOS) # NEAREST, BILINEAR, BICUBIC, LANCZOS
     return background
 
-def makeDepthText(text, depth=50,fontsize=50, font="freefont/FreeSansBold"):
+def makeDepthText(text, depth=50,fontsize=50, font=DEFAULT_DEPTHTEXT_FONT):
     """
     Recibe: Texto, profundidad de 0 a 100 y fontsize.
     Retorna: depth map (imagen).
@@ -233,6 +238,7 @@ class SettingsWindow:
     DEPTHMAP_RANDOM = 0
     DEPTHMAP_SHARK = 1
     DEPTHMAP_FILE = 2
+    DEPTHMAP_TEXT = 3
     PATTERN_RANDOM = 0
     PATTERN_DOTS = 1
     PATTERN_FILE = 2
@@ -256,9 +262,12 @@ class SettingsWindow:
     DEFAULT_DEPTHMAP_FILE = "depth_maps/tiburon.png"
     DEFAULT_DEPTH_MULTIPLIER = 1
     DEFAULT_DEPTHMAP_GAUSSIAN_BLUR = 0
+    DEFAULT_DEPTHTEXT_DEPTH = 50
+    DEFAULT_DEPTHTEXT_FONTSIZE = 130
+
     DEPTHMAP_OPTIONS = [
         ("Shark", DEPTHMAP_SHARK),
-        ("Random", DEPTHMAP_RANDOM),
+        ("Text", DEPTHMAP_TEXT),
         ("Custom File", DEPTHMAP_FILE)
     ]
     PATTERN_OPTIONS = [
@@ -274,9 +283,9 @@ class SettingsWindow:
         main_frame.pack()
         # main elements
         depthmap_frame = Frame(self.window_root)
-        depthmap_frame.pack(anchor=E)
+        depthmap_frame.pack(anchor=NE)
         pattern_frame = Frame(self.window_root)
-        pattern_frame.pack(anchor=E)
+        pattern_frame.pack(anchor=NE)
         mode_frame = Frame(self.window_root)
         mode_frame.pack()
         saving_settings_frame = Frame(self.window_root)
@@ -317,9 +326,20 @@ class SettingsWindow:
         self.depthmap_selection = IntVar()
         self.depthmap_selection.set(self.DEFAULT_DEPTHMAP_SELECTION)
         for text, option in self.DEPTHMAP_OPTIONS:
-            b = Radiobutton(root, text=text, variable=self.depthmap_selection, value=option,
+            if option == self.DEPTHMAP_TEXT:
+                text_frame = Frame(root)
+                text_frame.pack(side=LEFT, anchor=NE)
+                b = Radiobutton(text_frame, text=text, variable=self.depthmap_selection, value=option,
+                                command=self.updateDepthmapBrowseButton)
+                b.pack(side=TOP, anchor=W)
+                self.depthmap_text = Entry(text_frame)
+                self.depthmap_text.pack(side=BOTTOM, anchor=W)
+            else:
+                b = Radiobutton(root, text=text, variable=self.depthmap_selection, value=option,
                             command=self.updateDepthmapBrowseButton)
-            b.pack(anchor=NW, side=LEFT)
+                b.pack(side=LEFT, anchor=NE)
+
+
         self.depthmap_browse_button = Button(root, text="Browse...", command=self.askOpenDepthmapFile,
                                              state=DISABLED)
         self.depthmap_browse_button.pack(side=LEFT)
@@ -383,10 +403,10 @@ class SettingsWindow:
         self.depthmap_smoothness_scale = Scale(depthmap_smoothness_frame, from_=0, to=10, orient=HORIZONTAL, resolution=0.1)
         self.depthmap_smoothness_scale.pack(side=LEFT)
         self.depthmap_smoothness_scale.set(self.DEFAULT_DEPTHMAP_GAUSSIAN_BLUR)
-        # Depth multiplirer
+        # Depth multiplier
         depth_multiplier_frame = Frame(root)
         depth_multiplier_frame.pack(anchor=E)
-        Label(depth_multiplier_frame, text="Depth multiplier", font=self.makeFont(self.FONT_SECTION_SUBTITLE)).pack(side=LEFT)
+        Label(depth_multiplier_frame, text="Depth ammount", font=self.makeFont(self.FONT_SECTION_SUBTITLE)).pack(side=LEFT)
         self.depth_multiplier_scale = Scale(depth_multiplier_frame, from_=0, to=1, orient=HORIZONTAL, resolution=0.1)
         self.depth_multiplier_scale.pack(side=LEFT)
         self.depth_multiplier_scale.set(self.DEFAULT_DEPTH_MULTIPLIER)
@@ -480,6 +500,11 @@ class SettingsWindow:
             user_settings["depthmap"] = SettingsWindow.DEFAULT_DEPTHMAP_FILE
         elif dm_selection == SettingsWindow.DEPTHMAP_RANDOM:
             user_settings["depthmap"] = "R"
+        elif dm_selection == self.DEPTHMAP_TEXT:
+            user_settings["depthmap"] = "text"
+            user_settings["text"] = {"value" : self.depthmap_text.get(),
+                                     "fontsize": self.DEFAULT_DEPTHTEXT_FONTSIZE,
+                                     "depth" : self.DEFAULT_DEPTHTEXT_DEPTH}
 
         # pattern
         pa_selection = self.pattern_selection.get()
@@ -541,7 +566,7 @@ def askUserForSettings():
 def main():
     opts = askUserForSettings()
     print("Generando...")
-    i = makeStereogram(opts["depthmap"],opts["pattern"],("ce" if opts["cross-eyed"] else "we"))
+    i = makeStereogram(opts)
     print("Mostrando...")
     showImg(i)
     if opts["output"] != "":
@@ -563,9 +588,7 @@ Esto se llama Hidden Surface Removal.
 
 # TODO: Uncouple strings and common definitions, remove hardcoded messages... that sort of stuff
 # TODO: Translate everything to english
-# TODO: Add Text generation option
 # TODO: Expand grayscale between the two extremes (enhances near-flat depth maps)
 # TODO: Try to enlarge grayscale depth
-# TODO: Show advanced menu
 # TODO: Make random pattern option include dots
 # TODO: Fix Cross-eyed bug
