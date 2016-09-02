@@ -176,7 +176,11 @@ def makeDepthText(text, depth=50,fontsize=50, font=DEFAULT_DEPTHTEXT_FONT):
     i=im.new('L',SIZE, "black")
     # Draw text with appropriate gray level
     fnt=imf.truetype(fontdir,fontsize)
-    imd.Draw(i).text(((i.size[0]/2-len(text)/2*fontsize),(i.size[1]/2-fontsize)),text,font=fnt,fill=((int)(255.0*depth/100)))
+    imd.Draw(i).text(
+        ((SIZE[0]/2 - fnt.getsize(text)[0]/2,
+          SIZE[1]/2 - fnt.getsize(text)[1]/2)),
+        text,font=fnt,
+        fill=((int)(255.0*depth/100)))
     return i
 
 def saveToFile(img,name,format=""):
@@ -265,7 +269,7 @@ class SettingsWindow:
     DEFAULT_DEPTHMAP_SELECTION = DEPTHMAP_SHARK
     DEFAULT_PATTERN_SELECTION = PATTERN_DOTS
     DEFAULT_MODE_SELECTION = MODE_WALLEYED
-    DEFAULT_DONTSAVE_VALUE = False
+    DEFAULT_DONTSAVE_VALUE = True
     DEFAULT_DEPTHMAP_FILE = "depth_maps/tiburon.png"
     DEFAULT_DEPTH_MULTIPLIER = 1
     DEFAULT_DEPTHMAP_GAUSSIAN_BLUR = 0
@@ -404,6 +408,7 @@ class SettingsWindow:
         self.dont_save_checkbox = Checkbutton(root, text="I don't wanna save it!",
                                            variable=self.dont_save_variable, command=self.updateSaveButton)
         self.dont_save_checkbox.pack(side=RIGHT)
+        self.updateSaveButton()
 
     def addAdvancedSettings(self, root):
         self.newSectionTitle(root, "Advanced Settings").pack()
@@ -596,9 +601,8 @@ in the stereogram. They say it can be fixed... but how?
 This is called Hidden Surface Removal.
 """
 
-# TODO: Uncouple strings and common definitions, remove hardcoded messages... that sort of stuff
+# TODO: Uncouple strings and common definitions, remove hardcoded messages, dict keys... that sort of stuff
 # TODO: Expand grayscale between the two extremes (enhances near-flat depth maps)
 # TODO: Try to enlarge grayscale depth
 # TODO: Make random pattern option include dots
 # TODO: Fix Cross-eyed bug
-# TODO: Center generated text
