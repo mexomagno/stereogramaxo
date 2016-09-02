@@ -47,6 +47,7 @@ LEFT_TO_RIGHT = False # Defines how the pixels will be shifted (left to right or
 DOT_DRAW_PROBABILITY=0.4 # Decides how often a random dot is drawn
 SMOOTH_DEPTHMAP = True
 SMOOTH_FACTOR = 1.8
+DOT_OVER_PATTERN_PROBABILITY = 0.3 # Defines how often dots are chosen over pattern on random pattern selection
 
 def showImg(i):
     i.show(command="eog")
@@ -56,6 +57,8 @@ def makeBackground(size = SIZE,filename=""):
     # Pattern is a little bit longer than original picture, so everything fits on 3D (eye crossing shrinks the picture horizontally!)
     i = im.new("RGB", (size[0]+pattern_width,size[1]), color="black")
     i_pix = i.load()
+    if filename == "R" and random() < DOT_OVER_PATTERN_PROBABILITY:
+        filename = "dots"
     # Load from picture
     imagen = False
     if filename!="" and filename!="dots":
@@ -604,5 +607,5 @@ This is called Hidden Surface Removal.
 # TODO: Uncouple strings and common definitions, remove hardcoded messages, dict keys... that sort of stuff
 # TODO: Expand grayscale between the two extremes (enhances near-flat depth maps)
 # TODO: Try to enlarge grayscale depth
-# TODO: Make random pattern option include dots
 # TODO: Fix Cross-eyed bug
+# TODO: Try to fix broken fin on shark
