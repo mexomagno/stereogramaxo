@@ -5,13 +5,13 @@ from __future__ import print_function
 from PIL import Image as im, ImageDraw as imd
 from random import choice, random
 import os
-import argparse as AP
 # GUI
 from Tkinter import *
 import tkFileDialog, tkFont
 
 # Program info
 PROGRAM_VERSION="2.0"
+
 # Default Values
 SUPPORTED_INPUT_IMAGE_FORMATS = [
     ("PNG", "*.png"),
@@ -29,31 +29,34 @@ SUPPORTED_INPUT_IMAGE_FORMATS = [
     ("WEBP", "*.webp"),
     ("XBM", "*.xbm")
 ]
-SUPPORTED_OUTPUT_IMAGE_FORMATS = SUPPORTED_INPUT_IMAGE_FORMATS
 DEFAULT_OUTPUT_FILE_FORMAT="png"
+DEFAULT_DEPTHTEXT_FONT = "freefont/FreeSansBold"
 
-# Constantes
+# CONSTANTS
+SUPPORTED_OUTPUT_IMAGE_FORMATS = SUPPORTED_INPUT_IMAGE_FORMATS
+DMFOLDER = "depth_maps"
+PATTERNFOLDER = "patterns"
+SAVEFOLDER = "saved"
+
+# SETTINGS
 SIZE = (800,600)
 PATTERN_FRACTION = 8.0
 OVERSAMPLE = 1.8
 SHIFT_RATIO = 0.3
-DMFOLDER = "depth_maps"
-PATTERNFOLDER = "patterns"
-SAVEFOLDER = "saved"
-LEFT_TO_RIGHT = False # True: Recorre de izq. a derecha. False: Recorre desde el centro a los bordes.
+LEFT_TO_RIGHT = False # Defines how the pixels will be shifted (left to right or center to sides
 DOT_DRAW_PROBABILITY=0.4 # Decides how often a random dot is drawn
 SMOOTH_DEPTHMAP = True
 SMOOTH_FACTOR = 1.8
-DEFAULT_DEPTHTEXT_FONT = "freefont/FreeSansBold"
+
 def showImg(i):
     i.show(command="eog")
 
 def makeBackground(size = SIZE,filename=""):
     pattern_width = (int)(size[0]/PATTERN_FRACTION)
-    # Patrón es un poco más largo que imagen original, para que quepa toda en 3D
+    # Pattern is a little bit longer than original picture, so everything fits on 3D (eye crossing shrinks the picture horizontally!)
     i = im.new("RGB", (size[0]+pattern_width,size[1]), color="black")
     i_pix = i.load()
-    # Cargar desde imagen
+    # Load from picture
     imagen = False
     if filename!="" and filename!="dots":
         pattern = loadFile((getRandom("pattern") if filename == "R" else filename))
@@ -63,19 +66,19 @@ def makeBackground(size = SIZE,filename=""):
         else:
             imagen = True
             pattern = pattern.resize((pattern_width,(int)((pattern_width*1.0/pattern.size[0])*pattern.size[1])),im.LANCZOS)
-            # repetir verticalmente
+            # Repeat vertically
             region = pattern.crop((0,0,pattern.size[0],pattern.size[1]))
             y = 0
             while y < i.size[1]:
                 i.paste(region,(0,y,pattern.size[0],y+pattern.size[1]))
                 y += pattern.size[1]
-    # Relleno random
+    # Random fill
     if filename=="" or filename=="dots":
         for f in range(i.size[1]):
             for c in range(pattern_width):
                 if random() < DOT_DRAW_PROBABILITY: #choice([True,False,False,False]):
                     i_pix[c,f]=choice([(255,0,0),(255,255,0),(200,0,255)])
-    # Repetir relleno
+    # Repeat fill
     # x = 0
     # rect = (0,0,pattern_width,i.size[1])
     # region = i.crop(rect)
@@ -86,38 +89,40 @@ def makeBackground(size = SIZE,filename=""):
 
 def getRandom(whatfile="depthmap"):
     """
-        retorna nombre de archivo aleatorio.
-        "whatfile" especifica si se quiere un 'depthmap' aleatorio o un 'pattern' aleatorio.
+    Returns a random file from either depthmap folder or patterns folder
+    :param whatfile: specifies which folder
+    :return: randomly chosen absolute file dir
     """
     folder = (DMFOLDER if whatfile == "depthmap" else PATTERNFOLDER)
     return folder + "/" + choice(os.listdir(folder))
 
 def makeStereogram(options, patt="",mode="we"):
     """
-    Recibe: Depth Map, patrón a usar, modo {we,ce} (wall-eyed, cross-eyed)
-    Retorna: Nada. El resultado está en la imagen recibida.
-
-    Esta función hace la pega de generar el stereograma.
-    Lee desde un depth map, genera el patrón de puntos y retorna la imagen con el stereograma.
-
+    Actually generates the stereogram.
+    :param options: User-issued options
+    :param patt: pattern filename or "dots"
+    :param mode: Wall-eyed or cross-eyed
+    :return: generated stereogram imafe
     """
-    # Cargar depthmap
+    # Load options
     patt = "" if "pattern" not in options else options["pattern"]
     mode = "we" if "cross-eyed" not in options else ("ce" if options["cross-eyed"] else "we")
+    # Load stereogram depthmap
     if options["depthmap"] == "text":
         dm = makeDepthText(options["text"]["value"], options["text"]["depth"], options["text"]["fontsize"], DEFAULT_DEPTHTEXT_FONT)
     else:
         dm = loadFile((getRandom("depthmap") if options["depthmap"] == "R" else options["depthmap"]),'L')
     if (dm == None):
-        print("Abortando")
+        print("Aborting")
         exit(1)
+    # Apply gaussian blur filter
     if SMOOTH_DEPTHMAP:
         from PIL import ImageFilter as imf
         dm = dm.filter(imf.GaussianBlur(SMOOTH_FACTOR))
 
-    # Crear patrón base
+    # Create base pattern
     background, isimg = makeBackground(dm.size,patt)
-    # Usar oversampling si el patrón es una imagen y no random dots
+    # Oversample on image-pattern based background (NOT dots, bad results!)
     if isimg:
         dm = dm.resize(((int)(dm.size[0]*OVERSAMPLE),(int)(dm.size[1]*OVERSAMPLE)))
         background = background.resize(((int)(background.size[0]*OVERSAMPLE),(int)(background.size[1]*OVERSAMPLE)))
@@ -125,8 +130,9 @@ def makeStereogram(options, patt="",mode="we"):
     pattern_width = (int)(size[0]*1.0/PATTERN_FRACTION)
     pt_pix = background.load()
     dm_pix = dm.load()
-    ponderador=pattern_width*SHIFT_RATIO # Empíricamente, en un sitio pasaban de 120px en el punto más profundo a 90px (25%)
-    # mover patrón al medio hacia la izquierda
+    # Empirically obtained. In some place they went from 120px on the shallowest point to 90px (25%)
+    ponderador=pattern_width*SHIFT_RATIO
+    # Shift pixels from center to left
     if not LEFT_TO_RIGHT:
         x_medios_bg = background.size[0]/2
         rect = (0,0,pattern_width,background.size[1])
@@ -134,42 +140,43 @@ def makeStereogram(options, patt="",mode="we"):
     for f in range(size[1]):
         if LEFT_TO_RIGHT:
             for c in range(pattern_width,background.size[0]):
-                # De izquierda a derecha
+                # From left to right
                 shift  = (dm_pix[(c-pattern_width),f] if mode == "we" else (255-dm_pix[(c-pattern_width),f]))/255.0*ponderador
                 pt_pix[c,f]=pt_pix[c-pattern_width+shift,f]
         else:
             for c in range(x_medios_bg,background.size[0]):
-                # Hacia el lado derecho
+                # Center to right
                 shift  = (dm_pix[(c-pattern_width),f] if mode == "we" else (255-dm_pix[(c-pattern_width),f]))/255.0*ponderador
                 pt_pix[c,f]=pt_pix[c-pattern_width+shift,f]
             for c in range(x_medios_bg-1,pattern_width-1,-1):
-                # Hacia la izquierda
+                # Center to left
                 shift  = (dm_pix[c,f] if mode == "we" else (255-dm_pix[c,f]))/255.0*ponderador
                 pt_pix[c,f]=pt_pix[c+pattern_width-shift,f]
     if not LEFT_TO_RIGHT:
         background.paste(background.crop((pattern_width,0,2*pattern_width,background.size[1])),rect)
-    #Retorna stereograma
-    if isimg: # Regresa del oversampling
+    if isimg: # Return from oversampled image
         background = background.resize(((int)(background.size[0]/OVERSAMPLE),(int)(background.size[1]/OVERSAMPLE)),im.LANCZOS) # NEAREST, BILINEAR, BICUBIC, LANCZOS
     return background
 
 def makeDepthText(text, depth=50,fontsize=50, font=DEFAULT_DEPTHTEXT_FONT):
     """
-    Recibe: Texto, profundidad de 0 a 100 y fontsize.
-    Retorna: depth map (imagen).
-    Esta función genera un mapa de profundidad con un texto, para generar stereograma a partir de él.
+    Makes a text depthmap
+    :param text: Text
+    :param depth: Desired depth
+    :param fontsize: Size of text
+    :param font: Further font specification
+    :return: new depthmap image with text
     """
     import PIL.ImageFont as imf
     if depth<0: depth=0
     if depth>100: depth=100
     fontroot="/usr/share/fonts/truetype"
     fontdir="{}/{}.ttf".format(fontroot,font)
-    # Crear imagen (escala de grises)
+    # Create image (grayscale)
     i=im.new('L',SIZE, "black")
-    # Dibujar texto con gris apropiado
+    # Draw text with appropriate gray level
     fnt=imf.truetype(fontdir,fontsize)
     imd.Draw(i).text(((i.size[0]/2-len(text)/2*fontsize),(i.size[1]/2-fontsize)),text,font=fnt,fill=((int)(255.0*depth/100)))
-    # Retornar imagen
     return i
 
 def saveToFile(img,name,format=""):
@@ -177,9 +184,12 @@ def saveToFile(img,name,format=""):
     for ext in SUPPORTED_OUTPUT_IMAGE_FORMATS:
         valid_ext.append(ext[1].split(".")[1].lower())
     print (valid_ext)
-    # Tres formas de especificar formato: Con nombre de archivo, poniendo "format" y con el formato default de la imagen
-    # Prioridades son: Nombre de archivo, parámetro format, formato interno de imagen
-    # Intentar guardar con formato de nombre
+    # Three ways to specify a format:
+    #   1: Within filename
+    #   2: With "format" parameter
+    #   3: Default file format
+    # Priority is: 1, then 2, then 3
+    # Trying to save with image name format
     filename, fileformat = os.path.splitext(os.path.basename(name))
     fileformat = fileformat.replace(".","")
     dirname = os.path.dirname(name)
@@ -187,35 +197,35 @@ def saveToFile(img,name,format=""):
         savefolder = SAVEFOLDER
     else:
         savefolder = dirname
-    # Chequear que carpeta de guardado existe, sino, crearla
+    # Try to create folder, if it doesn't exist already
     if not os.path.exists(savefolder):
         try:
             os.mkdir(savefolder)
         except IOError, msg:
-            print("No se puede crear archivo: {}".format(msg))
+            print("Cannot create file: {}".format(msg))
             exit(1)
     if fileformat not in valid_ext:
-        # Intentar con formato especificado por parámetro
+        # Try with format parameter
         fileformat = format
         if fileformat not in valid_ext:
-            # Usar extensión con la que ya venía la imagen
+            # Use image extension
             fileformat = img.format
             if fileformat not in valid_ext:
                 fileformat = valid_ext[0]
     try:
         finalname = filename+"."+fileformat
-        # Revisar que archivo no exista
+        # Check file existence
         i=1
         while os.path.exists(savefolder+"/"+finalname):
             if i==1:
-                print ("AVISO: Archivo '{}' ya existe en '{}'".format(finalname,savefolder))
+                print ("WARNING: File '{}' already exists in '{}'".format(finalname,savefolder))
             finalname = "{} ({}).{}".format(filename,i,fileformat)
             i+=1
         r = img.save(savefolder+"/"+finalname)
         print("Saved file as '{}/{}'".format(savefolder, finalname))
         return finalname
     except IOError, msg:
-        print("Error al guardar imagen como '{}/{}': {}".format(savefolder,filename,msg))
+        print("Error trying to save image as '{}/{}': {}".format(savefolder,filename,msg))
         return None
 
 def loadFile(name,type=''):
@@ -223,11 +233,8 @@ def loadFile(name,type=''):
         i = im.open(name)
         if type != "":
             i = i.convert(type)
-        #print ("Abierto '{}'. Formato: {}, Tamaño: {}, Bandas: {}".format(name, i.format, i.size, len(i.split())))
-        # import numpy
-        # print (numpy.array(i))
     except IOError, msg:
-        print ("No se pudo abrir la imagen '{}': {}".format(name,msg))
+        print ("Picture couln't be loaded '{}': {}".format(name,msg))
         return None
     return i
 
@@ -330,13 +337,13 @@ class SettingsWindow:
                 text_frame = Frame(root)
                 text_frame.pack(side=LEFT, anchor=NE)
                 b = Radiobutton(text_frame, text=text, variable=self.depthmap_selection, value=option,
-                                command=self.updateDepthmapBrowseButton)
+                                command=self.updateDepthmapSelection)
                 b.pack(side=TOP, anchor=W)
                 self.depthmap_text = Entry(text_frame)
                 self.depthmap_text.pack(side=BOTTOM, anchor=W)
             else:
                 b = Radiobutton(root, text=text, variable=self.depthmap_selection, value=option,
-                            command=self.updateDepthmapBrowseButton)
+                                command=self.updateDepthmapSelection)
                 b.pack(side=LEFT, anchor=NE)
 
 
@@ -349,13 +356,15 @@ class SettingsWindow:
                                            font=self.makeFont(self.FONT_CHOSEN_FILE),
                                            fg=self.COLOR_CHOSEN_FILE)
         self.chosen_depthmap_label.pack()
+        self.updateDepthmapSelection()
+
     def addPatternSettings(self, root):
         self.newSectionTitle(root, "Pattern selection").pack()
         self.pattern_selection = IntVar()
         self.pattern_selection.set(self.DEFAULT_PATTERN_SELECTION)
         for text, option in self.PATTERN_OPTIONS:
             b = Radiobutton(root, text=text, variable=self.pattern_selection, value=option,
-                            command=self.updatePatternBrowseButton)
+                            command=self.updatePatternSelection)
             b.pack(anchor=NW, side=LEFT)
         self.pattern_browse_button = Button(root, text="Browse...", command=self.askOpenPatternFile,
                                             state=DISABLED)
@@ -366,6 +375,8 @@ class SettingsWindow:
                                           font=self.makeFont(self.FONT_CHOSEN_FILE),
                                           fg=self.COLOR_CHOSEN_FILE)
         self.chosen_pattern_label.pack()
+        self.updatePatternSelection()
+
     def add3dModeSettings(self, root):
         self.newSectionTitle(root, "3D Viewing Mode").pack()
         self.mode_selection = IntVar()
@@ -457,30 +468,29 @@ class SettingsWindow:
     def askOpenPatternFile(self):
         self.askopenfile("p")
 
-    def updateBrowseButton(self, which):
-        if which == "d":
-            if self.depthmap_selection.get() == SettingsWindow.DEPTHMAP_FILE:
-                self.depthmap_browse_button["state"] = NORMAL
-            else:
-                self.depthmap_browse_button["state"] = DISABLED
-                # Clear last file selection
-                self.last_depthmap_chosen.set("")
-                self.depthmap_file_path = ""
-        elif which == "p":
-            if self.pattern_selection.get() == SettingsWindow.PATTERN_FILE:
-                self.pattern_browse_button["state"] = NORMAL
-            else:
-                self.pattern_browse_button["state"] = DISABLED
-                # Clear last file selection
-                self.last_pattern_chosen.set("")
-                self.pattern_file_path = ""
+    def updateDepthmapSelection(self):
+        # Text input enabled
+        if self.depthmap_selection.get() == self.DEPTHMAP_TEXT:
+            self.depthmap_text["state"] = NORMAL
+        else:
+            self.depthmap_text["state"] = DISABLED
+        # Browse button enabled
+        if self.depthmap_selection.get() == self.DEPTHMAP_FILE:
+            self.depthmap_browse_button["state"] = NORMAL
+        else:
+            self.depthmap_browse_button["state"] = DISABLED
+            self.last_depthmap_chosen.set("")
+            self.depthmap_file_path = ""
 
+    def updatePatternSelection(self):
+        # Browse button enabled
+        if self.pattern_selection.get() == self.PATTERN_FILE:
+            self.pattern_browse_button["state"] = NORMAL
+        else:
+            self.pattern_browse_button["state"] = DISABLED
+            self.last_pattern_chosen.set("")
+            self.pattern_file_path = ""
 
-    def updateDepthmapBrowseButton(self):
-        self.updateBrowseButton("d")
-
-    def updatePatternBrowseButton(self):
-        self.updateBrowseButton("p")
 
     def setUserSettings(self):
         global user_settings
@@ -565,12 +575,12 @@ def askUserForSettings():
 
 def main():
     opts = askUserForSettings()
-    print("Generando...")
+    print("Generating...")
     i = makeStereogram(opts)
-    print("Mostrando...")
+    print("Displaying...")
     showImg(i)
     if opts["output"] != "":
-        print("Guardando...")
+        print("Saving...")
         output = saveToFile(i,opts["output"])
         if output == None:
             print("Oops! Couldn't save file!!")
@@ -579,16 +589,16 @@ if __name__ == "__main__":
     main()
 
 """
-Problemas:
-Cuando pasa de poco profundo a profundo, una parte de la superficie se repite hacia la derecha.
-La explicación de internet es que son puntos que el ojo derecho no debería ser capaz de ver, pero los estamos considerando igual.
-Es reparable... pero cómo?
-Esto se llama Hidden Surface Removal.
+Problems:
+When image sharply changes from one depth to a different one, a part of the surface edge repeats to the right and left.
+Internet's explanation is that there are some points one eye shouldn't be able to see, but we nonetheless consider them
+in the stereogram. They say it can be fixed... but how?
+This is called Hidden Surface Removal.
 """
 
 # TODO: Uncouple strings and common definitions, remove hardcoded messages... that sort of stuff
-# TODO: Translate everything to english
 # TODO: Expand grayscale between the two extremes (enhances near-flat depth maps)
 # TODO: Try to enlarge grayscale depth
 # TODO: Make random pattern option include dots
 # TODO: Fix Cross-eyed bug
+# TODO: Center generated text
