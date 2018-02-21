@@ -41,8 +41,8 @@ Choose your options on the GUI and you're done!
 
 
 ### TODO:
-- Speed up generation (multi threading?)
 - Translate code
+- Speed up generation (multi threading?)
 - Solve "leftmost-column" bug
 - Offer as a web service for portability
 - Hidden-surface removal (removes artifacts) *(this one might never be done...)*

@@ -1,16 +1,17 @@
 #!/usr/bin/python
-# -*- coding: utf-8 -*-
+# coding: utf-8
 from __future__ import print_function
+import os
+from random import choice, random
 # This "PIL" refers to Pillow, the PIL fork. Check https://pillow.readthedocs.io/en/3.3.x
 from PIL import Image as im, ImageDraw as imd
-from random import choice, random
-import os
 # GUI
 from Tkinter import *
-import tkFileDialog, tkFont
+import tkFileDialog
+import tkFont
 
 # Program info
-PROGRAM_VERSION="2.0"
+PROGRAM_VERSION = "2.0"
 
 # Default Values
 SUPPORTED_INPUT_IMAGE_FORMATS = [
@@ -29,7 +30,7 @@ SUPPORTED_INPUT_IMAGE_FORMATS = [
     ("WEBP", "*.webp"),
     ("XBM", "*.xbm")
 ]
-DEFAULT_OUTPUT_FILE_FORMAT="png"
+DEFAULT_OUTPUT_FILE_FORMAT = "png"
 DEFAULT_DEPTHTEXT_FONT = "freefont/FreeSansBold"
 
 # CONSTANTS
@@ -39,48 +40,51 @@ PATTERNFOLDER = "patterns"
 SAVEFOLDER = "saved"
 
 # SETTINGS
-SIZE = (800,600)
+SIZE = (800, 600)
 PATTERN_FRACTION = 8.0
 OVERSAMPLE = 1.8
 SHIFT_RATIO = 0.3
-LEFT_TO_RIGHT = False # Defines how the pixels will be shifted (left to right or center to sides
-DOT_DRAW_PROBABILITY=0.4 # Decides how often a random dot is drawn
+LEFT_TO_RIGHT = False  # Defines how the pixels will be shifted (left to right or center to sides
+DOT_DRAW_PROBABILITY = 0.4  # Decides how often a random dot is drawn
 SMOOTH_DEPTHMAP = True
 SMOOTH_FACTOR = 1.8
-DOT_OVER_PATTERN_PROBABILITY = 0.3 # Defines how often dots are chosen over pattern on random pattern selection
+DOT_OVER_PATTERN_PROBABILITY = 0.3  # Defines how often dots are chosen over pattern on random pattern selection
 
-def showImg(i):
+
+def show_img(i):
     i.show(command="eog")
 
-def makeBackground(size = SIZE,filename=""):
-    pattern_width = (int)(size[0]/PATTERN_FRACTION)
+
+def make_background(size=SIZE, filename=""):
+    pattern_width = (int)(size[0] / PATTERN_FRACTION)
     # Pattern is a little bit longer than original picture, so everything fits on 3D (eye crossing shrinks the picture horizontally!)
-    i = im.new("RGB", (size[0]+pattern_width,size[1]), color="black")
+    i = im.new("RGB", (size[0] + pattern_width, size[1]), color="black")
     i_pix = i.load()
     if filename == "R" and random() < DOT_OVER_PATTERN_PROBABILITY:
         filename = "dots"
     # Load from picture
-    imagen = False
-    if filename!="" and filename!="dots":
-        pattern = loadFile((getRandom("pattern") if filename == "R" else filename))
-        if pattern == None:
-            print ("Error al cargar '{}'. Generando con puntos aleatorios.".format(filename))
-            filename=""
+    is_image = False
+    if filename != "" and filename != "dots":
+        pattern = load_file((get_random("pattern") if filename == "R" else filename))
+        if pattern is None:
+            print("Error al cargar '{}'. Generando con puntos aleatorios.".format(filename))
+            filename = ""
         else:
-            imagen = True
-            pattern = pattern.resize((pattern_width,(int)((pattern_width*1.0/pattern.size[0])*pattern.size[1])),im.LANCZOS)
+            is_image = True
+            pattern = pattern.resize((pattern_width, (int)((pattern_width * 1.0 / pattern.size[0]) * pattern.size[1])),
+                                     im.LANCZOS)
             # Repeat vertically
-            region = pattern.crop((0,0,pattern.size[0],pattern.size[1]))
+            region = pattern.crop((0, 0, pattern.size[0], pattern.size[1]))
             y = 0
             while y < i.size[1]:
-                i.paste(region,(0,y,pattern.size[0],y+pattern.size[1]))
+                i.paste(region, (0, y, pattern.size[0], y + pattern.size[1]))
                 y += pattern.size[1]
     # Random fill
-    if filename=="" or filename=="dots":
+    if filename == "" or filename == "dots":
         for f in range(i.size[1]):
             for c in range(pattern_width):
-                if random() < DOT_DRAW_PROBABILITY: #choice([True,False,False,False]):
-                    i_pix[c,f]=choice([(255,0,0),(255,255,0),(200,0,255)])
+                if random() < DOT_DRAW_PROBABILITY:  # choice([True,False,False,False]):
+                    i_pix[c, f] = choice([(255, 0, 0), (255, 255, 0), (200, 0, 255)])
     # Repeat fill
     # x = 0
     # rect = (0,0,pattern_width,i.size[1])
@@ -88,33 +92,55 @@ def makeBackground(size = SIZE,filename=""):
     # while x < i.size[0]:
     # 	i.paste(region,(x,0,x+pattern_iwdth,i.size[1]))
     # 	x += pattern_width
-    return i,imagen
+    return i, is_image
 
-def getRandom(whatfile="depthmap"):
+
+def get_random(whatfile="depthmap"):
     """
     Returns a random file from either depthmap folder or patterns folder
-    :param whatfile: specifies which folder
-    :return: randomly chosen absolute file dir
+
+    Parameters
+    ----------
+    whatfile : str
+        specifies which folder
+
+    Returns
+    -------
+    str :
+        Randomly chosen absolute file dir
+
     """
     folder = (DMFOLDER if whatfile == "depthmap" else PATTERNFOLDER)
     return folder + "/" + choice(os.listdir(folder))
 
-def makeStereogram(options, patt="",mode="we"):
+
+def make_stereogram(options, patt="", mode="we"):
     """
     Actually generates the stereogram.
-    :param options: User-issued options
-    :param patt: pattern filename or "dots"
-    :param mode: Wall-eyed or cross-eyed
-    :return: generated stereogram imafe
+
+    Parameters
+    ----------
+    options : dict
+        User-issued options
+    patt : str
+        pattern filename or "dots"
+    mode : str
+        Wall-eyed or cross-eyed
+
+    Returns
+    -------
+    PIL.Image.Image :
+        Generated stereogram image
     """
     # Load options
     patt = "" if "pattern" not in options else options["pattern"]
     mode = "we" if "cross-eyed" not in options else ("ce" if options["cross-eyed"] else "we")
     # Load stereogram depthmap
     if options["depthmap"] == "text":
-        dm = makeDepthText(options["text"]["value"], options["text"]["depth"], options["text"]["fontsize"], DEFAULT_DEPTHTEXT_FONT)
+        dm = make_depth_text(options["text"]["value"], options["text"]["depth"], options["text"]["fontsize"],
+                             DEFAULT_DEPTHTEXT_FONT)
     else:
-        dm = loadFile((getRandom("depthmap") if options["depthmap"] == "R" else options["depthmap"]),'L')
+        dm = load_file((get_random("depthmap") if options["depthmap"] == "R" else options["depthmap"]), 'L')
     if (dm == None):
         print("Aborting")
         exit(1)
@@ -124,73 +150,89 @@ def makeStereogram(options, patt="",mode="we"):
         dm = dm.filter(imf.GaussianBlur(SMOOTH_FACTOR))
 
     # Create base pattern
-    background, isimg = makeBackground(dm.size,patt)
+    background, isimg = make_background(dm.size, patt)
     # Oversample on image-pattern based background (NOT dots, bad results!)
     if isimg:
-        dm = dm.resize(((int)(dm.size[0]*OVERSAMPLE),(int)(dm.size[1]*OVERSAMPLE)))
-        background = background.resize(((int)(background.size[0]*OVERSAMPLE),(int)(background.size[1]*OVERSAMPLE)))
+        dm = dm.resize(((int)(dm.size[0] * OVERSAMPLE), (int)(dm.size[1] * OVERSAMPLE)))
+        background = background.resize(((int)(background.size[0] * OVERSAMPLE), (int)(background.size[1] * OVERSAMPLE)))
     size = dm.size
-    pattern_width = (int)(size[0]*1.0/PATTERN_FRACTION)
+    pattern_width = (int)(size[0] * 1.0 / PATTERN_FRACTION)
     pt_pix = background.load()
     dm_pix = dm.load()
     # Empirically obtained. In some place they went from 120px on the shallowest point to 90px (25%)
-    ponderador=pattern_width*SHIFT_RATIO
+    ponderador = pattern_width * SHIFT_RATIO
     # Shift pixels from center to left
     if not LEFT_TO_RIGHT:
-        x_medios_bg = background.size[0]/2
-        rect = (0,0,pattern_width,background.size[1])
-        background.paste(background.crop(rect),(x_medios_bg-pattern_width,0,x_medios_bg,background.size[1]))
+        x_medios_bg = background.size[0] / 2
+        rect = (0, 0, pattern_width, background.size[1])
+        background.paste(background.crop(rect), (x_medios_bg - pattern_width, 0, x_medios_bg, background.size[1]))
     for f in range(size[1]):
         if LEFT_TO_RIGHT:
-            for c in range(pattern_width,background.size[0]):
+            for c in range(pattern_width, background.size[0]):
                 # From left to right
-                shift  = (dm_pix[(c-pattern_width),f] if mode == "we" else (255-dm_pix[(c-pattern_width),f]))/255.0*ponderador
-                pt_pix[c,f]=pt_pix[c-pattern_width+shift,f]
+                shift = (dm_pix[(c - pattern_width), f] if mode == "we" else (
+                255 - dm_pix[(c - pattern_width), f])) / 255.0 * ponderador
+                pt_pix[c, f] = pt_pix[c - pattern_width + shift, f]
         else:
-            for c in range(x_medios_bg,background.size[0]):
+            for c in range(x_medios_bg, background.size[0]):
                 # Center to right
-                shift  = (dm_pix[(c-pattern_width),f] if mode == "we" else (255-dm_pix[(c-pattern_width),f]))/255.0*ponderador
-                pt_pix[c,f]=pt_pix[c-pattern_width+shift,f]
-            for c in range(x_medios_bg-1,pattern_width-1,-1):
+                shift = (dm_pix[(c - pattern_width), f] if mode == "we" else (
+                255 - dm_pix[(c - pattern_width), f])) / 255.0 * ponderador
+                pt_pix[c, f] = pt_pix[c - pattern_width + shift, f]
+            for c in range(x_medios_bg - 1, pattern_width - 1, -1):
                 # Center to left
-                shift  = (dm_pix[c,f] if mode == "we" else (255-dm_pix[c,f]))/255.0*ponderador
-                pt_pix[c,f]=pt_pix[c+pattern_width-shift,f]
+                shift = (dm_pix[c, f] if mode == "we" else (255 - dm_pix[c, f])) / 255.0 * ponderador
+                pt_pix[c, f] = pt_pix[c + pattern_width - shift, f]
     if not LEFT_TO_RIGHT:
-        background.paste(background.crop((pattern_width,0,2*pattern_width,background.size[1])),rect)
-    if isimg: # Return from oversampled image
-        background = background.resize(((int)(background.size[0]/OVERSAMPLE),(int)(background.size[1]/OVERSAMPLE)),im.LANCZOS) # NEAREST, BILINEAR, BICUBIC, LANCZOS
+        background.paste(background.crop((pattern_width, 0, 2 * pattern_width, background.size[1])), rect)
+    if isimg:  # Return from oversampled image
+        background = background.resize(((int)(background.size[0] / OVERSAMPLE), (int)(background.size[1] / OVERSAMPLE)),
+                                       im.LANCZOS)  # NEAREST, BILINEAR, BICUBIC, LANCZOS
     return background
 
-def makeDepthText(text, depth=50,fontsize=50, font=DEFAULT_DEPTHTEXT_FONT):
+
+def make_depth_text(text, depth=50, fontsize=50, font=DEFAULT_DEPTHTEXT_FONT):
     """
     Makes a text depthmap
-    :param text: Text
-    :param depth: Desired depth
-    :param fontsize: Size of text
-    :param font: Further font specification
-    :return: new depthmap image with text
+
+    Parameters
+    ----------
+    text : str
+        Text to generate
+    depth : int
+        Desired depth
+    fontsize : int
+        Size of text
+    font : str
+        Further font specification
+
+    Returns
+    -------
+    PIL.Image.Image
+        Generated depthmap image
     """
     import PIL.ImageFont as imf
-    if depth<0: depth=0
-    if depth>100: depth=100
-    fontroot="/usr/share/fonts/truetype"
-    fontdir="{}/{}.ttf".format(fontroot,font)
+    if depth < 0: depth = 0
+    if depth > 100: depth = 100
+    fontroot = "/usr/share/fonts/truetype"
+    fontdir = "{}/{}.ttf".format(fontroot, font)
     # Create image (grayscale)
-    i=im.new('L',SIZE, "black")
+    i = im.new('L', SIZE, "black")
     # Draw text with appropriate gray level
-    fnt=imf.truetype(fontdir,fontsize)
+    fnt = imf.truetype(fontdir, fontsize)
     imd.Draw(i).text(
-        ((SIZE[0]/2 - fnt.getsize(text)[0]/2,
-          SIZE[1]/2 - fnt.getsize(text)[1]/2)),
-        text,font=fnt,
-        fill=((int)(255.0*depth/100)))
+        ((SIZE[0] / 2 - fnt.getsize(text)[0] / 2,
+          SIZE[1] / 2 - fnt.getsize(text)[1] / 2)),
+        text, font=fnt,
+        fill=((int)(255.0 * depth / 100)))
     return i
 
-def saveToFile(img,name,format=""):
+
+def save_to_file(img, name, fmt=""):
     valid_ext = []
     for ext in SUPPORTED_OUTPUT_IMAGE_FORMATS:
         valid_ext.append(ext[1].split(".")[1].lower())
-    print (valid_ext)
+    print(valid_ext)
     # Three ways to specify a format:
     #   1: Within filename
     #   2: With "format" parameter
@@ -198,7 +240,7 @@ def saveToFile(img,name,format=""):
     # Priority is: 1, then 2, then 3
     # Trying to save with image name format
     filename, fileformat = os.path.splitext(os.path.basename(name))
-    fileformat = fileformat.replace(".","")
+    fileformat = fileformat.replace(".", "")
     dirname = os.path.dirname(name)
     if dirname == "":
         savefolder = SAVEFOLDER
@@ -213,39 +255,42 @@ def saveToFile(img,name,format=""):
             exit(1)
     if fileformat not in valid_ext:
         # Try with format parameter
-        fileformat = format
+        fileformat = fmt
         if fileformat not in valid_ext:
             # Use image extension
             fileformat = img.format
             if fileformat not in valid_ext:
                 fileformat = valid_ext[0]
     try:
-        finalname = filename+"."+fileformat
+        finalname = filename + "." + fileformat
         # Check file existence
-        i=1
-        while os.path.exists(savefolder+"/"+finalname):
-            if i==1:
-                print ("WARNING: File '{}' already exists in '{}'".format(finalname,savefolder))
-            finalname = "{} ({}).{}".format(filename,i,fileformat)
-            i+=1
-        r = img.save(savefolder+"/"+finalname)
+        i = 1
+        while os.path.exists(savefolder + "/" + finalname):
+            if i == 1:
+                print("WARNING: File '{}' already exists in '{}'".format(finalname, savefolder))
+            finalname = "{} ({}).{}".format(filename, i, fileformat)
+            i += 1
+        r = img.save(savefolder + "/" + finalname)
         print("Saved file as '{}/{}'".format(savefolder, finalname))
         return finalname
     except IOError, msg:
-        print("Error trying to save image as '{}/{}': {}".format(savefolder,filename,msg))
+        print("Error trying to save image as '{}/{}': {}".format(savefolder, filename, msg))
         return None
 
-def loadFile(name,type=''):
+
+def load_file(name, type=''):
     try:
         i = im.open(name)
         if type != "":
             i = i.convert(type)
     except IOError, msg:
-        print ("Picture couln't be loaded '{}': {}".format(name,msg))
+        print("Picture couln't be loaded '{}': {}".format(name, msg))
         return None
     return i
 
+
 user_settings = dict()
+
 
 class SettingsWindow:
     # CONSTANTS
@@ -263,11 +308,11 @@ class SettingsWindow:
     WINDOW_POSITION_X = 100
     WINDOW_POSITION_Y = 30
     COLOR_ERROR = "#ff0000"
-    COLOR_CHOSEN_FILE ="#002288"
-    FONT_SECTION_TITLE = {"family":"Helvetica", "size":12, "weight":"bold"}
-    FONT_CHOSEN_FILE = {"family":"Helvetica", "size":10, "weight":"normal"}
-    FONT_GENERATE_BUTTON = {"family":"Helvetica", "size":13, "weight":"bold"}
-    FONT_SECTION_SUBTITLE = {"family":"Helvetica", "size": FONT_SECTION_TITLE["size"]-2, "weight":"bold"}
+    COLOR_CHOSEN_FILE = "#002288"
+    FONT_SECTION_TITLE = {"family": "Helvetica", "size": 12, "weight": "bold"}
+    FONT_CHOSEN_FILE = {"family": "Helvetica", "size": 10, "weight": "normal"}
+    FONT_GENERATE_BUTTON = {"family": "Helvetica", "size": 13, "weight": "bold"}
+    FONT_SECTION_SUBTITLE = {"family": "Helvetica", "size": FONT_SECTION_TITLE["size"] - 2, "weight": "bold"}
     # DEFAULTS
     DEFAULT_DEPTHMAP_SELECTION = DEPTHMAP_SHARK
     DEFAULT_PATTERN_SELECTION = PATTERN_DOTS
@@ -289,6 +334,7 @@ class SettingsWindow:
         ("Random", PATTERN_RANDOM),
         ("Custom pattern", PATTERN_FILE)
     ]
+
     def __init__(self, parent):
         self.window_root = Toplevel(parent)
         self.window_root.geometry("+{}+{}".format(self.WINDOW_POSITION_X, self.WINDOW_POSITION_Y))
@@ -321,8 +367,9 @@ class SettingsWindow:
         self.addAdvancedSettings(advanced_settings_frame)
 
         # Generate button
-        b = Button(self.window_root, text = "Generate!", command = self.setUserSettings, font=self.FONT_GENERATE_BUTTON, bg = generate_button_bg_color, fg=generate_button_fg_color)
-        b.pack(side = BOTTOM)
+        b = Button(self.window_root, text="Generate!", command=self.setUserSettings, font=self.FONT_GENERATE_BUTTON,
+                   bg=generate_button_bg_color, fg=generate_button_fg_color)
+        b.pack(side=BOTTOM)
 
         self.depthmap_file_path = ""
         self.pattern_file_path = ""
@@ -352,7 +399,6 @@ class SettingsWindow:
                 b = Radiobutton(root, text=text, variable=self.depthmap_selection, value=option,
                                 command=self.updateDepthmapSelection)
                 b.pack(side=LEFT, anchor=NE)
-
 
         self.depthmap_browse_button = Button(root, text="Browse...", command=self.askOpenDepthmapFile,
                                              state=DISABLED)
@@ -403,13 +449,13 @@ class SettingsWindow:
         self.last_outputname_chosen = StringVar()
         self.last_outputname_chosen.set("")
         self.chosen_outputname_label = Label(root, textvariable=self.last_outputname_chosen,
-                                          font=self.makeFont(self.FONT_CHOSEN_FILE),
-                                          fg=self.COLOR_CHOSEN_FILE)
+                                             font=self.makeFont(self.FONT_CHOSEN_FILE),
+                                             fg=self.COLOR_CHOSEN_FILE)
         self.chosen_outputname_label.pack(side=LEFT)
         self.dont_save_variable = BooleanVar()
         self.dont_save_variable.set(self.DEFAULT_DONTSAVE_VALUE)
         self.dont_save_checkbox = Checkbutton(root, text="I don't wanna save it!",
-                                           variable=self.dont_save_variable, command=self.updateSaveButton)
+                                              variable=self.dont_save_variable, command=self.updateSaveButton)
         self.dont_save_checkbox.pack(side=RIGHT)
         self.updateSaveButton()
 
@@ -418,20 +464,21 @@ class SettingsWindow:
         # Depthmap smoothness
         depthmap_smoothness_frame = Frame(root)
         depthmap_smoothness_frame.pack(anchor=E)
-        Label(depthmap_smoothness_frame, text = "Depthmap gaussian blur level", font=self.makeFont(self.FONT_SECTION_SUBTITLE)).pack(side=LEFT)
-        self.depthmap_smoothness_scale = Scale(depthmap_smoothness_frame, from_=0, to=10, orient=HORIZONTAL, resolution=0.1)
+        Label(depthmap_smoothness_frame, text="Depthmap gaussian blur level",
+              font=self.makeFont(self.FONT_SECTION_SUBTITLE)).pack(side=LEFT)
+        self.depthmap_smoothness_scale = Scale(depthmap_smoothness_frame, from_=0, to=10, orient=HORIZONTAL,
+                                               resolution=0.1)
         self.depthmap_smoothness_scale.pack(side=LEFT)
         self.depthmap_smoothness_scale.set(self.DEFAULT_DEPTHMAP_GAUSSIAN_BLUR)
         # Depth multiplier
         depth_multiplier_frame = Frame(root)
         depth_multiplier_frame.pack(anchor=E)
-        Label(depth_multiplier_frame, text="Depth ammount", font=self.makeFont(self.FONT_SECTION_SUBTITLE)).pack(side=LEFT)
+        Label(depth_multiplier_frame, text="Depth ammount", font=self.makeFont(self.FONT_SECTION_SUBTITLE)).pack(
+            side=LEFT)
         self.depth_multiplier_scale = Scale(depth_multiplier_frame, from_=0, to=1, orient=HORIZONTAL, resolution=0.1)
         self.depth_multiplier_scale.pack(side=LEFT)
         self.depth_multiplier_scale.set(self.DEFAULT_DEPTH_MULTIPLIER)
         # Dot colors
-
-
 
     ## Some logic
 
@@ -443,17 +490,16 @@ class SettingsWindow:
         else:
             self.save_button["state"] = NORMAL
 
-
     def askSaveAs(self):
         self.output_filepath = tkFileDialog.asksaveasfilename(filetypes=SUPPORTED_OUTPUT_IMAGE_FORMATS)
         self.chosen_outputname_label.config(fg=SettingsWindow.COLOR_CHOSEN_FILE)
         self.last_outputname_chosen.set("Will save as '{}'".format(os.path.basename(self.output_filepath)))
 
-
     def askopenfile(self, which):
         # TODO: Show image thumbnail instead of (or appended to) image name
         Tk().withdraw()
-        self.filename = tkFileDialog.askopenfilename(initialdir=os.path.expanduser("~/Desktop"), filetypes = (SUPPORTED_INPUT_IMAGE_FORMATS + [("Show all files", "*")]))
+        self.filename = tkFileDialog.askopenfilename(initialdir=os.path.expanduser("~/Desktop"), filetypes=(
+        SUPPORTED_INPUT_IMAGE_FORMATS + [("Show all files", "*")]))
         if which == "d":
             self.depthmap_file_path = self.filename
             if self.filename:
@@ -468,7 +514,6 @@ class SettingsWindow:
                 self.last_pattern_chosen.set(os.path.basename(self.filename))
             else:
                 self.last_pattern_chosen.set("")
-
 
     def askOpenDepthmapFile(self):
         self.askopenfile("d")
@@ -499,7 +544,6 @@ class SettingsWindow:
             self.last_pattern_chosen.set("")
             self.pattern_file_path = ""
 
-
     def setUserSettings(self):
         global user_settings
         # Get settings and update user_settings
@@ -509,7 +553,7 @@ class SettingsWindow:
         dm_file_path = self.depthmap_file_path
         if dm_selection == SettingsWindow.DEPTHMAP_FILE:
             if not dm_file_path:
-                self.chosen_depthmap_label.config(fg = SettingsWindow.COLOR_ERROR)
+                self.chosen_depthmap_label.config(fg=SettingsWindow.COLOR_ERROR)
                 self.last_depthmap_chosen.set("First select a file, please :)")
                 return
             else:
@@ -520,9 +564,9 @@ class SettingsWindow:
             user_settings["depthmap"] = "R"
         elif dm_selection == self.DEPTHMAP_TEXT:
             user_settings["depthmap"] = "text"
-            user_settings["text"] = {"value" : self.depthmap_text.get(),
+            user_settings["text"] = {"value": self.depthmap_text.get(),
                                      "fontsize": self.DEFAULT_DEPTHTEXT_FONTSIZE,
-                                     "depth" : self.DEFAULT_DEPTHTEXT_DEPTH}
+                                     "depth": self.DEFAULT_DEPTHTEXT_DEPTH}
 
         # pattern
         pa_selection = self.pattern_selection.get()
@@ -572,7 +616,8 @@ Final Settings:
 
         self.window_root.destroy()
 
-def askUserForSettings():
+
+def receive_arguments():
     global user_settings
     root = Tk()
     root.withdraw()
@@ -581,17 +626,19 @@ def askUserForSettings():
     root.destroy()
     return user_settings
 
+
 def main():
-    opts = askUserForSettings()
+    opts = receive_arguments()
     print("Generating...")
-    i = makeStereogram(opts)
+    i = make_stereogram(opts)
     print("Displaying...")
-    showImg(i)
+    show_img(i)
     if opts["output"] != "":
         print("Saving...")
-        output = saveToFile(i,opts["output"])
-        if output == None:
+        output = save_to_file(i, opts["output"])
+        if output is None:
             print("Oops! Couldn't save file!!")
+
 
 if __name__ == "__main__":
     main()
