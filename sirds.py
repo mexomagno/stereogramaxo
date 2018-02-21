@@ -3,6 +3,7 @@
 from __future__ import print_function
 import os
 from random import choice, random
+import json
 # This "PIL" refers to Pillow, the PIL fork. Check https://pillow.readthedocs.io/en/3.3.x
 from PIL import Image as im, ImageDraw as imd
 # GUI
@@ -49,6 +50,86 @@ DOT_DRAW_PROBABILITY = 0.4  # Decides how often a random dot is drawn
 SMOOTH_DEPTHMAP = True
 SMOOTH_FACTOR = 1.8
 DOT_OVER_PATTERN_PROBABILITY = 0.3  # Defines how often dots are chosen over pattern on random pattern selection
+
+
+class _StereogramSettings:
+    """ Persistent settings manager, based on a local json file """
+    DEFAULT_FILE_NAME = "./.opts.json"
+    SETTINGS_CONTRACT = {
+        "eye_mode": {
+                        "type": bool,  # Wall-eyed (True) or cross-eyed (False)
+                        "default": True
+        }
+    }
+
+    @classmethod
+    def get(cls, file_path=None):
+        # Check if file exists
+        if file_path is None:
+            file_path = cls.DEFAULT_FILE_NAME
+        if not os.path.exists(file_path):
+            print("Settings file doesn't exist. Will use defaults")
+            print("Generating settings file...")
+            cls._generate_presets_file()
+        # Read from file and return
+        return cls._read_from_file(file_path)
+
+    @classmethod
+    def dump(cls, in_dict):
+        cls._save_to_file(in_dict)
+
+    @classmethod
+    def _read_from_file(cls, file_path):
+        if file_path is None or not os.path.exists(file_path):
+            raise ValueError("File doesn't exist!")
+        with open(file_path, "r") as settings_file:
+            try:
+                read_dict = json.load(settings_file)
+            except ValueError:
+                raise ValueError("Not a valid JSON-structured file")
+            if not cls._is_dict_valid(read_dict):
+                raise ValueError("Invalid settings")
+            print("Correctly read settings from '{}'".format(file_path))
+            return read_dict
+
+    @classmethod
+    def _save_to_file(cls, settings_dict, file_path=None):
+        """
+        Saves a settings dict to a file
+
+        Parameters
+        ----------
+        settings_dict : dict
+            The settings dict. Must be valid
+        file_path : str
+            Path where settings will be stored
+
+        Returns
+        -------
+        None
+        """
+        if file_path is None:
+            file_path = cls.DEFAULT_FILE_NAME
+        # Validate settings dict
+        if not cls._is_dict_valid(settings_dict):
+            raise ValueError("Invalid settings dict")
+        # Store
+        with open(file_path, "w") as save_file:
+            json.dump(settings_dict, save_file)
+        print("Saved settings to '{}'".format(file_path))
+
+
+    @classmethod
+    def _is_dict_valid(cls, in_dict):
+        return set(cls.SETTINGS_CONTRACT.keys()) == set(in_dict.keys())
+
+    @classmethod
+    def _generate_presets_file(cls):
+        new_settings_dict = dict()
+        for key in cls.SETTINGS_CONTRACT:
+            new_settings_dict[key] = cls.SETTINGS_CONTRACT[key]["default"]
+        cls._save_to_file(new_settings_dict)
+
 
 
 def show_img(i):
@@ -617,7 +698,15 @@ Final Settings:
         self.window_root.destroy()
 
 
-def receive_arguments():
+def receive_arguments_from_gui():
+    """
+    Use Gui interface to ask user for options
+
+    Returns
+    -------
+    dict
+        Options
+    """
     global user_settings
     root = Tk()
     root.withdraw()
@@ -628,7 +717,7 @@ def receive_arguments():
 
 
 def main():
-    opts = receive_arguments()
+    opts = receive_arguments_from_gui()
     print("Generating...")
     i = make_stereogram(opts)
     print("Displaying...")
