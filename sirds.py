@@ -62,7 +62,8 @@ class _PersistentSettings:
     _PATTERN = "pattern"
     _EYE_MODE = "eye_mode"
     _OUTPUT_FILE = "output_file"
-    _DOTS_DEPTHMAP = "D"
+    DOT_PATTERN = "D"
+    RANDOM = "R"
 
     _SETTINGS_CONTRACT = {
         _DEPTHMAP_FILE: {
@@ -73,7 +74,7 @@ class _PersistentSettings:
             },
         },
         _DEPTHMAP_TEXT: {
-            "TYPE": str,
+            "type": str,
             "default": {
                 "value": "Hello World",
                 "selected": False
@@ -81,7 +82,7 @@ class _PersistentSettings:
         },
         _PATTERN: {
             "type": str,
-            "default": "R"  # "R" == random depthmap
+            "default": DOT_PATTERN  # "R" == random depthmap, "D" == dots. Else, a path must be inputted
         },
         _EYE_MODE: {
             "type": bool,  # Wall-eyed (True) or cross-eyed (False)
@@ -106,6 +107,7 @@ class _PersistentSettings:
         """ Save to a file """
         self._save_to_file(self._settings_dict)
 
+    # DEPTHMAPH
     def get_depthmap_text(self):
         return self._settings_dict[self._DEPTHMAP_TEXT]["value"]
 
@@ -127,6 +129,18 @@ class _PersistentSettings:
             self._settings_dict[self._DEPTHMAP_FILE]["value"] = value
             self._settings_dict[self._DEPTHMAP_FILE]["selected"] = True
             self._settings_dict[self._DEPTHMAP_TEXT]["selected"] = False
+
+    # PATTERN
+    def get_pattern_selection(self):
+        pattern = self._settings_dict[self._PATTERN]
+        if pattern != self.DOT_PATTERN and pattern != self.RANDOM and not os.path.exists(pattern):
+            raise ValueError("Pattern file doesn't exist")
+        return pattern
+
+    def select_pattern(self, pattern):
+        if pattern != self.DOT_PATTERN and pattern != self.RANDOM and not os.path.exists(pattern):
+            raise ValueError("Pattern file doesn't exist")
+        self._settings_dict[self._PATTERN] = pattern
 
     @classmethod
     def _is_dict_valid(cls, in_dict):
@@ -187,129 +201,6 @@ class _PersistentSettings:
             json.dump(settings_dict, save_file, indent=4, sort_keys=True)
         print("Saved settings to '{}'".format(file_path))
 
-# class _PersistentSettings2:
-#     """ Persistent settings manager, based on a local json file """
-#     _DEFAULT_FILE_NAME = "./.opts.json"
-#
-#     # KEYS
-#     DEPTHMAP = "depthmap"
-#     PATTERN = "pattern"
-#     EYE_MODE = "eye_mode"
-#     OUTPUT_FILE = "output_file"
-#     DOTS_DEPTHMAP = "D"
-#
-#     _SETTINGS_CONTRACT = {
-#         DEPTHMAP: {
-#             "type": str,
-#             "default": {
-#                 "text": False,  # False if file, true if text
-#                 "value": "depth_maps/tiburon.png"  # path if file, string if text
-#             }
-#         },
-#         PATTERN: {
-#             "type": str,
-#             "default": "R"  # "R" == random depthmap
-#         },
-#         EYE_MODE: {
-#             "type": bool,  # Wall-eyed (True) or cross-eyed (False)
-#             "default": True,
-#         },
-#         OUTPUT_FILE: {
-#             "type": str,
-#             "default": ""
-#         }
-#     }
-#
-#
-#     @classmethod
-#     def get(cls, file_path=None):
-#         # Check if file exists
-#         if file_path is None:
-#             file_path = cls._DEFAULT_FILE_NAME
-#         if not os.path.exists(file_path):
-#             print("Settings file doesn't exist. Will use defaults")
-#             print("Generating settings file...")
-#             cls._generate_presets_file()
-#         # Read from file and return
-#         return cls._read_from_file(file_path)
-#
-#     @classmethod
-#     def dump(cls, in_dict):
-#         cls._save_to_file(in_dict)
-#
-#     @classmethod
-#     def _read_from_file(cls, file_path):
-#         if file_path is None or not os.path.exists(file_path):
-#             raise ValueError("File doesn't exist!")
-#         with open(file_path, "r") as settings_file:
-#             try:
-#                 read_dict = json.load(settings_file)
-#             except ValueError:
-#                 raise ValueError("Not a valid JSON-structured file")
-#             if not cls._is_dict_valid(read_dict):
-#                 raise ValueError("Invalid settings")
-#             print("Correctly read settings from '{}'".format(file_path))
-#             return read_dict
-#
-#     @classmethod
-#     def _save_to_file(cls, settings_dict, file_path=None):
-#         """
-#         Saves a settings dict to a file
-#
-#         Parameters
-#         ----------
-#         settings_dict : dict
-#             The settings dict. Must be valid
-#         file_path : str
-#             Path where settings will be stored
-#
-#         Returns
-#         -------
-#         None
-#         """
-#         if file_path is None:
-#             file_path = cls._DEFAULT_FILE_NAME
-#         # Validate settings dict
-#         if not cls._is_dict_valid(settings_dict):
-#             raise ValueError("Invalid settings dict")
-#         # Store
-#         with open(file_path, "w") as save_file:
-#             json.dump(settings_dict, save_file, indent=4, sort_keys=True)
-#         print("Saved settings to '{}'".format(file_path))
-#
-#
-#     @classmethod
-#     def _is_dict_valid(cls, in_dict):
-#         return set(cls._SETTINGS_CONTRACT.keys()) == set(in_dict.keys())
-#
-#     @classmethod
-#     def _generate_presets_file(cls):
-#         new_settings_dict = dict()
-#         for key in cls._SETTINGS_CONTRACT:
-#             new_settings_dict[key] = cls._SETTINGS_CONTRACT[key]["default"]
-#         cls._save_to_file(new_settings_dict)
-#
-#     @classmethod
-#     def set_depthmap(cls, settings_dict, is_text, value):
-#         """
-#         Modifies the depthpam on the dicts setting
-#
-#         Parameters
-#         ----------
-#         settings_dict : dict
-#             A valid settings dict
-#         is_text : bool
-#             If the depthmap is a text string
-#         value : str
-#             If text, the text to show, else, the path to the depthmap. If DOTS_DEPTHMAP, assume a dots depth map
-#
-#         Returns
-#         -------
-#         None
-#         """
-#         settings_dict[cls.DEPTHMAP]["text"] = is_text
-#         settings_dict[cls.DEPTHMAP]["value"] = value
-#
 
 def show_img(i):
     i.show(command="eog")
@@ -554,8 +445,8 @@ class SettingsWindow:
     DEPTHMAP_SHARK = 1
     DEPTHMAP_FILE = 2
     DEPTHMAP_TEXT = 3
-    PATTERN_RANDOM = 0
-    PATTERN_DOTS = 1
+    PATTERN_DOTS = 0
+    PATTERN_RANDOM = 1
     PATTERN_FILE = 2
     MODE_WALLEYED = 0
     MODE_CROSSEYED = 1
@@ -616,7 +507,7 @@ class SettingsWindow:
         # depthmap settings
         self.add_depthmap_settings(depthmap_frame)
         # Pattern settings
-        self.addPatternSettings(pattern_frame)
+        self.add_pattern_settings(pattern_frame)
         # Mode selection
         self.add3dModeSettings(mode_frame)
         # output filename
@@ -629,8 +520,6 @@ class SettingsWindow:
                    bg=generate_button_bg_color, fg=generate_button_fg_color)
         b.pack(side=BOTTOM)
 
-
-        # self.pattern_file_path = ""  # Selected background pattern file path
         # self.output_filepath = ""
 
     # TKinter element generators
@@ -699,24 +588,33 @@ class SettingsWindow:
 
         self.update_depthmap_selection()
 
-    def addPatternSettings(self, root):
+    def add_pattern_settings(self, root):
         self.newSectionTitle(root, "Pattern selection").pack()
-        self.pattern_selection = IntVar()
-        self.pattern_selection.set(self.DEFAULT_PATTERN_SELECTION)
+        self.tk_pattern_selection = IntVar()
+        # set selection from settings
+        last_selection_raw = self._persistent_settings.get_pattern_selection()
+        print("last pattern selection: {}".format(last_selection_raw))
+        if last_selection_raw == _PersistentSettings.DOT_PATTERN:
+            self.tk_pattern_selection.set(self.PATTERN_DOTS)
+        elif last_selection_raw == _PersistentSettings.RANDOM:
+            self.tk_pattern_selection.set(self.PATTERN_RANDOM)
+        else:
+            self.tk_pattern_selection.set(self.PATTERN_FILE)
+        print("pattern selection: {}".format(self.tk_pattern_selection.get()))
         for text, option in self.PATTERN_OPTIONS:
-            b = Radiobutton(root, text=text, variable=self.pattern_selection, value=option,
-                            command=self.updatePatternSelection)
+            b = Radiobutton(root, text=text, variable=self.tk_pattern_selection, value=option,
+                            command=self.update_pattern_selection)
             b.pack(anchor=NW, side=LEFT)
-        self.pattern_browse_button = Button(root, text="Browse...", command=self.askOpenPatternFile,
-                                            state=DISABLED)
-        self.pattern_browse_button.pack(anchor=NW, side=LEFT)
-        self.last_pattern_chosen = StringVar()
-        self.last_pattern_chosen.set("")
-        self.chosen_pattern_label = Label(root, textvariable=self.last_pattern_chosen,
-                                          font=self.makeFont(self.FONT_CHOSEN_FILE),
-                                          fg=self.COLOR_CHOSEN_FILE)
-        self.chosen_pattern_label.pack()
-        self.updatePatternSelection()
+        self.tk_pattern_browse_button = Button(root, text="Browse...", command=self.ask_open_pattern_file,
+                                               state=DISABLED)
+        self.tk_pattern_browse_button.pack(anchor=NW, side=LEFT)
+        self.tk_last_pattern_chosen = StringVar()
+        self.tk_last_pattern_chosen.set("")
+        self.tk_chosen_pattern_label = Label(root, textvariable=self.tk_last_pattern_chosen,
+                                             font=self.makeFont(self.FONT_CHOSEN_FILE),
+                                             fg=self.COLOR_CHOSEN_FILE)
+        self.tk_chosen_pattern_label.pack()
+        self.update_pattern_selection()
 
     def add3dModeSettings(self, root):
         self.newSectionTitle(root, "3D Viewing Mode").pack()
@@ -783,7 +681,7 @@ class SettingsWindow:
         self.chosen_outputname_label.config(fg=SettingsWindow.COLOR_CHOSEN_FILE)
         self.last_outputname_chosen.set("Will save as '{}'".format(os.path.basename(self.output_filepath)))
 
-    def askopenfile(self, which):
+    def ask_open_file(self, which):
         """
         Show 'browse file' dialog
 
@@ -800,7 +698,7 @@ class SettingsWindow:
         initialdir = os.path.expanduser("~/Desktop")
 
         # Try to get
-        initialfile = self._persistent_settings.get_depthmap_path() if which == "d" else self.pattern_file_path
+        initialfile = self._persistent_settings.get_depthmap_path() if which == "d" else self._persistent_settings.get_pattern_selection()
         print("Currently selected file: {}".format(initialfile))
         if initialfile != "" and os.path.exists(initialfile):
             initialdir = os.path.dirname(initialfile)
@@ -819,18 +717,17 @@ class SettingsWindow:
                 self._persistent_settings.select_depthmap("file", selected_file_path)
                 self.tk_chosen_depthmap_label.config(fg=SettingsWindow.COLOR_CHOSEN_FILE)
         elif which == "p":
-            self.pattern_file_path = selected_file_path
-            if selected_file_path:
-                self.chosen_pattern_label.config(fg=SettingsWindow.COLOR_CHOSEN_FILE)
-                self.last_pattern_chosen.set(os.path.basename(selected_file_path))
-            else:
-                self.last_pattern_chosen.set("")
+            print ("New pattern file selected: {}".format(selected_file_path))
+            if selected_file_path != "":
+                self.tk_last_pattern_chosen.set(os.path.basename(selected_file_path))
+                self._persistent_settings.select_pattern(selected_file_path)
+                self.tk_chosen_pattern_label.config(fg=SettingsWindow.COLOR_CHOSEN_FILE)
 
     def ask_open_depthmap_file(self):
-        self.askopenfile("d")
+        self.ask_open_file("d")
 
-    def askOpenPatternFile(self):
-        self.askopenfile("p")
+    def ask_open_pattern_file(self):
+        self.ask_open_file("p")
 
     def update_depthmap_selection(self):
         """ Edit tkinter elements to show new depthmap selection """
@@ -853,87 +750,20 @@ class SettingsWindow:
         if self.tk_depthmap_selection.get() == self.DEPTHMAP_SHARK:
             self._persistent_settings.select_depthmap("file", self.SHARK_PATH)
 
-
-    def updatePatternSelection(self):
+    def update_pattern_selection(self):
         # Browse button enabled
-        if self.pattern_selection.get() == self.PATTERN_FILE:
-            self.pattern_browse_button["state"] = NORMAL
+        if self.tk_pattern_selection.get() == self.PATTERN_FILE:
+            selected_pattern = self._persistent_settings.get_pattern_selection()
+            if selected_pattern != _PersistentSettings.RANDOM and selected_pattern != _PersistentSettings.DOT_PATTERN:
+                self.tk_last_pattern_chosen.set(os.path.basename())
+            self.tk_pattern_browse_button["state"] = NORMAL
         else:
-            self.pattern_browse_button["state"] = DISABLED
-            self.last_pattern_chosen.set("")
-            self.pattern_file_path = ""
-
-    # def setUserSettings(self):
-    #     # depthmap
-    #     dm_selection = self.tk_depthmap_selection.get()
-    #     if dm_selection == SettingsWindow.DEPTHMAP_FILE:
-    #         _, dm_file_path = self._persistent_settings.get_depthmap()
-    #         if dm_file_path == "":
-    #             self.tk_chosen_depthmap_label.config(fg=SettingsWindow.COLOR_ERROR)
-    #             self.tk_last_depthmap_chosen.set("First select a file, please :)")
-    #             return
-    #         elif not os.path.exists(dm_file_path):
-    #             self.tk_chosen_depthmap_label.config(fg=SettingsWindow.COLOR_ERROR)
-    #             self.tk_last_depthmap_chosen.set("File doesn't exist! Please retry")
-    #         else:
-    #             self._persistent_settings.set_depthmap(False, dm_file_path)
-    #             modified_settings["depthmap"] = dm_file_path
-    #     elif dm_selection == SettingsWindow.DEPTHMAP_SHARK:
-    #         modified_settings["depthmap"] = SettingsWindow.DEFAULT_DEPTHMAP_FILE
-    #     elif dm_selection == SettingsWindow.DEPTHMAP_RANDOM:
-    #         modified_settings["depthmap"] = "R"
-    #     elif dm_selection == self.DEPTHMAP_TEXT:
-    #         modified_settings["depthmap"] = "text"
-    #         modified_settings["text"] = {"value": self.tk_depthmap_text.get(),
-    #                                  "fontsize": self.DEFAULT_DEPTHTEXT_FONTSIZE,
-    #                                  "depth": self.DEFAULT_DEPTHTEXT_DEPTH}
-    #
-    #     # pattern
-    #     pa_selection = self.pattern_selection.get()
-    #     pa_file_path = self.pattern_file_path
-    #     if pa_selection == SettingsWindow.PATTERN_FILE:
-    #         if not pa_file_path:
-    #             self.chosen_pattern_label.config(fg=SettingsWindow.COLOR_ERROR)
-    #             self.last_pattern_chosen.set("First select a file, please :)")
-    #             return
-    #         else:
-    #             modified_settings["pattern"] = pa_file_path
-    #     elif pa_selection == SettingsWindow.PATTERN_DOTS:
-    #         modified_settings["pattern"] = "dots"
-    #     elif pa_selection == SettingsWindow.PATTERN_RANDOM:
-    #         modified_settings["pattern"] = "R"
-    #
-    #     # 3d mode
-    #     modified_settings["cross-eyed"] = False if self.mode_selection.get() == SettingsWindow.MODE_WALLEYED else True
-    #
-    #     # output file
-    #     if self.output_filepath:
-    #         modified_settings["output"] = self.output_filepath
-    #     else:
-    #         if self.dont_save_variable.get():
-    #             modified_settings["output"] = ""
-    #         else:
-    #             self.chosen_outputname_label.config(fg=SettingsWindow.COLOR_ERROR)
-    #             self.last_outputname_chosen.set("Select an output name please, kind sir")
-    #             return
-    #
-    #     # Advanced settings
-    #     # Depthmap gaussian blur
-    #     global SMOOTH_FACTOR
-    #     SMOOTH_FACTOR = self.depthmap_smoothness_scale.get()
-    #     # Depth multiplier
-    #
-    #     print("Final Settings:\n" +
-    #           "\tDepthmap:   {}\n" +
-    #           "\tPattern:    {}\n" +
-    #           "\t3D mode:    {}\n" +
-    #           "\tOutput:     {}".format(
-    #               modified_settings["depthmap"],
-    #               modified_settings["pattern"],
-    #               ("Cross-eyed" if modified_settings["cross-eyed"] else "Wall-eyed"),
-    #               modified_settings["output"]))
-    #     self._persistent_settings_dict = modified_settings
-    #     self.window_root.destroy()
+            self.tk_pattern_browse_button["state"] = DISABLED
+            self.tk_last_pattern_chosen.set("")
+            if self.tk_pattern_selection.get() == self.PATTERN_DOTS:
+                self._persistent_settings.select_pattern(_PersistentSettings.DOT_PATTERN)
+            elif self.tk_pattern_selection.get() == self.PATTERN_RANDOM:
+                self._persistent_settings.select_pattern(_PersistentSettings.RANDOM)
 
     def endWindowProcess(self):
         # At this point, settings are stored in internal settings variable
