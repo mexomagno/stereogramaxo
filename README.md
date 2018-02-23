@@ -41,7 +41,9 @@ Choose your options on the GUI and you're done!
 
 
 ### TODO:
-- Translate code
+- ~~Translate code~~
+- Persistent settings
+- PEP-8 on function names and such
 - Speed up generation (multi threading?)
 - Solve "leftmost-column" bug
 - Offer as a web service for portability
