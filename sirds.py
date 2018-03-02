@@ -55,7 +55,20 @@ def show_img(i):
     i.show(command="eog")
 
 
-def make_background(size=SIZE, filename=""):
+def make_background(size, filename=""):
+    """
+    Constructs background pattern
+
+    Parameters
+    ----------
+    size : tuple(int, int)
+        Size of the depthmap
+    filename : str
+        Name of the pattern image, if any. Empty if dot pattern
+    Returns
+    -------
+
+    """
     pattern_width = (int)(size[0] / PATTERN_FRACTION)
     # Pattern is a little bit longer than original picture, so everything fits on 3D (eye crossing shrinks the picture horizontally!)
     i = im.new("RGB", (size[0] + pattern_width, size[1]), color="black")
@@ -85,13 +98,7 @@ def make_background(size=SIZE, filename=""):
             for c in range(pattern_width):
                 if random() < DOT_DRAW_PROBABILITY:  # choice([True,False,False,False]):
                     i_pix[c, f] = choice([(255, 0, 0), (255, 255, 0), (200, 0, 255)])
-    # Repeat fill
-    # x = 0
-    # rect = (0,0,pattern_width,i.size[1])
-    # region = i.crop(rect)
-    # while x < i.size[0]:
-    # 	i.paste(region,(x,0,x+pattern_iwdth,i.size[1]))
-    # 	x += pattern_width
+
     return i, is_image
 
 
@@ -195,54 +202,67 @@ def make_stereogram(parsed_args):
     # Apply gaussian blur filter
     dm = dm.filter(imflt.GaussianBlur(parsed_args.blur))
 
-
     # Redistribute grayscale range
     if parsed_args.text:
         dm = redistribute_grays(dm, parsed_args.forcedepth if parsed_args.forcedepth is not None else 0.5)
     elif parsed_args.forcedepth:
         dm = redistribute_grays(dm, parsed_args.forcedepth)
 
-
     # Create base pattern
-    background, isimg = make_background(dm.size, "" if parsed_args.dots else parsed_args.pattern)
+    bg_image_object, pattern_is_img = make_background(dm.size, "" if parsed_args.dots else parsed_args.pattern)
+
     # Oversample on image-pattern based background (NOT dots, bad results!)
-    if isimg:
+    if pattern_is_img:
         dm = dm.resize(((int)(dm.size[0] * OVERSAMPLE), (int)(dm.size[1] * OVERSAMPLE)))
-        background = background.resize(((int)(background.size[0] * OVERSAMPLE), (int)(background.size[1] * OVERSAMPLE)))
-    size = dm.size
-    pattern_width = (int)(size[0] * 1.0 / PATTERN_FRACTION)
-    pt_pix = background.load()
+        bg_image_object = bg_image_object.resize(((int)(bg_image_object.size[0] * OVERSAMPLE), (int)(bg_image_object.size[1] * OVERSAMPLE)))
+
+    pattern_width = (int)(dm.size[0]/float(PATTERN_FRACTION))
+    bg_pix = bg_image_object.load()
     dm_pix = dm.load()
     # Empirically obtained. In some place they went from 120px on the shallowest point to 90px (25%)
-    ponderador = pattern_width * SHIFT_RATIO
-    # Shift pixels from center to left
+    depth_factor = pattern_width * SHIFT_RATIO
+
     if not LEFT_TO_RIGHT:
-        x_medios_bg = background.size[0] / 2
-        rect = (0, 0, pattern_width, background.size[1])
-        background.paste(background.crop(rect), (x_medios_bg - pattern_width, 0, x_medios_bg, background.size[1]))
-    for f in range(size[1]):
+        # Copy pattern to the middle
+        bg_middle_x = bg_image_object.size[0] / 2
+        pattern_rect = (0, 0, pattern_width, bg_image_object.size[1])
+        pattern_strip = bg_image_object.crop(pattern_rect)
+        # bg_image_object = im.new("RGB", (bg_image_object.size[0], bg_image_object.size[1]), color="black")
+        bg_image_object.paste(pattern_strip, (bg_middle_x - pattern_width, 0, bg_middle_x, bg_image_object.size[1]))
+
+    # Walk over depthmap
+    for y in range(dm.size[1]):
         if LEFT_TO_RIGHT:
-            for c in range(pattern_width, background.size[0]):
+            for x in range(pattern_width, bg_image_object.size[0]):
                 # From left to right
-                this_x = min(max(c - pattern_width, 0), size[0]-1)
-                shift = (dm_pix[this_x, f] if parsed_args.wall else (255 - dm_pix[this_x, f])) / 255.0 * ponderador
-                pt_pix[c, f] = pt_pix[c - pattern_width + shift, f]
+                this_x = min(max(x - pattern_width, 0), dm.size[0]-1)
+                shift = (dm_pix[this_x, y] if parsed_args.wall else (255 - dm_pix[this_x, y])) / 255.0 * depth_factor
+                bg_pix[x, y] = bg_pix[x - pattern_width + shift, y]
         else:
-            for c in range(x_medios_bg, background.size[0]):
+            # Walk to the right
+            for x in range(bg_middle_x, bg_image_object.size[0]):
+                this_gray = dm_pix[min(max(x - pattern_width, 0), dm.size[0]-1), y]
                 # Center to right
-                this_x = min(max(c - pattern_width, 0), size[0]-1)
-                shift = (dm_pix[this_x, f] if parsed_args.wall else (255 - dm_pix[this_x, f])) / 255.0 * ponderador
-                pt_pix[c, f] = pt_pix[c - pattern_width + shift, f]
-            for c in range(x_medios_bg - 1, pattern_width - 1, -1):
+                this_gray = this_gray if parsed_args.wall else 255 - this_gray
+                shift = this_gray / 255.0 * depth_factor
+                bg_pix[x, y] = bg_pix[x - pattern_width + shift, y]
+
+            # Walk to the left
+            for x in range(bg_middle_x - 1, pattern_width - 1, -1):
+                this_gray = dm_pix[x, y]
                 # Center to left
-                shift = (dm_pix[c, f] if parsed_args.wall else (255 - dm_pix[c, f])) / 255.0 * ponderador
-                pt_pix[c, f] = pt_pix[c + pattern_width - shift, f]
+                this_gray = this_gray if parsed_args.wall else (255 - this_gray)
+                shift = this_gray / 255.0 * depth_factor
+                bg_pix[x, y] = bg_pix[x + pattern_width - shift, y]
+
     if not LEFT_TO_RIGHT:
-        background.paste(background.crop((pattern_width, 0, 2 * pattern_width, background.size[1])), rect)
-    if isimg:  # Return from oversampled image
-        background = background.resize(((int)(background.size[0] / OVERSAMPLE), (int)(background.size[1] / OVERSAMPLE)),
+        bg_image_object.paste(bg_image_object.crop((pattern_width, 0, 2 * pattern_width, bg_image_object.size[1])), pattern_rect)
+
+    # Oversample result and bring back. Smooths everything.
+    if pattern_is_img:
+        bg_image_object = bg_image_object.resize(((int)(bg_image_object.size[0] / OVERSAMPLE), (int)(bg_image_object.size[1] / OVERSAMPLE)),
                                        im.LANCZOS)  # NEAREST, BILINEAR, BICUBIC, LANCZOS
-    return background
+    return bg_image_object
 
 
 def make_depth_text(text, font=DEFAULT_DEPTHTEXT_FONT):
