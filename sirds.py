@@ -12,27 +12,26 @@ from PIL import Image as im, ImageDraw as imd
 PROGRAM_VERSION = "2.0"
 
 # Default Values
-SUPPORTED_INPUT_IMAGE_FORMATS = [
-    ("PNG", "*.png"),
-    ('JPEG', "*.jpeg"),
-    ("Bitmap", "*.bmp"),
-    ("EPS", "*.eps"),
-    ("GIF", "*.gif"),
-    ("JPG", "*.jpg"),
-    ("IM", "*.im"),
-    ("MSP", "*.msp"),
-    ("PCX", "*.pcx"),
-    ("PPM", "*.ppm"),
-    ("Spider", "*.spider"),
-    ("TIFF", "*.tiff"),
-    ("WEBP", "*.webp"),
-    ("XBM", "*.xbm")
-]
-DEFAULT_OUTPUT_FILE_FORMAT = "png"
+# SUPPORTED_INPUT_IMAGE_FORMATS = [
+#     ("PNG", "*.png"),
+#     ('JPEG', "*.jpeg"),
+#     ("Bitmap", "*.bmp"),
+#     ("EPS", "*.eps"),
+#     ("GIF", "*.gif"),
+#     ("JPG", "*.jpg"),
+#     ("IM", "*.im"),
+#     ("MSP", "*.msp"),
+#     ("PCX", "*.pcx"),
+#     ("PPM", "*.ppm"),
+#     ("Spider", "*.spider"),
+#     ("TIFF", "*.tiff"),
+#     ("WEBP", "*.webp"),
+#     ("XBM", "*.xbm")
+# ]
+SUPPORTED_IMAGE_EXTENSIONS = [".png", ".jpeg", ".bmp", ".eps", ".gif", ".jpg", ".im", ".msp", ".pcx", ".ppm", ".spider", ".tiff", ".webp", ".xbm"]
 DEFAULT_DEPTHTEXT_FONT = "freefont/FreeSansBold"
 
 # CONSTANTS
-SUPPORTED_OUTPUT_IMAGE_FORMATS = SUPPORTED_INPUT_IMAGE_FORMATS
 DMFOLDER = "depth_maps"
 PATTERNFOLDER = "patterns"
 SAVEFOLDER = "saved"
@@ -290,13 +289,6 @@ def validate_args():
     """
     Retrieves arguments and parses them to a dict.
     """
-    arg_parser = argparse.ArgumentParser(description="Stereogramaxo: An autostereogram generator, by Mexomagno")
-    arg_parser.add_argument("depthmap", help="Path to a depthmap image file")
-    arg_parser.add_argument("--pattern", help="Path to an image file to use as background pattern", type=str, default="dots")
-    viewmode = arg_parser.add_mutually_exclusive_group(required=True)
-    viewmode.add_argument("--wall", "-w", help="Wall eyed mode", action="store_true")
-    viewmode.add_argument("--cross", "-c", help="Cross eyed mode", action="store_true")
-    arg_parser.add_argument("--blur", help="Gaussian blur ammount", type=int, choices=range(0, 11), default=0)
     def _restricted_float(x):
         x = float(x)
         min = 0.0
@@ -304,6 +296,27 @@ def validate_args():
         if x < min or x > max:
             raise argparse.ArgumentTypeError("{} not in range [{}, {}]".format(x, min, max))
         return x
+    def _supported_image_file(filename):
+        if not os.path.exists(filename):
+            raise argparse.ArgumentTypeError("File does not exist")
+        _, ext = os.path.splitext(filename)
+        if filename != "dots" and ext.strip().lower() not in SUPPORTED_IMAGE_EXTENSIONS:
+            raise argparse.ArgumentTypeError("File extension is not supported. Valid options are: {}".format(
+                SUPPORTED_IMAGE_EXTENSIONS))
+        return filename
+    arg_parser = argparse.ArgumentParser(description="Stereogramaxo: An autostereogram generator, by Mexomagno")
+    depthmap_arg_group = arg_parser.add_mutually_exclusive_group(required=True)
+    depthmap_arg_group.add_argument("--depthmap", "-d", help="Path to a depthmap image file", type=_supported_image_file)
+    depthmap_arg_group.add_argument("--text", "-t", help="Generate a depthmap with text", type=str, default="Hello")
+    pattern_arg_group = arg_parser.add_mutually_exclusive_group(required=True)
+    pattern_arg_group.add_argument("--dots", help="Generate a dot pattern for the background", action="store_true")
+    pattern_arg_group.add_argument("--pattern", help="Path to an image file to use as background pattern",
+                            type=_supported_image_file)
+    viewmode_arg_group = arg_parser.add_mutually_exclusive_group(required=True)
+    viewmode_arg_group.add_argument("--wall", "-w", help="Wall eyed mode", action="store_true")
+    viewmode_arg_group.add_argument("--cross", "-c", help="Cross eyed mode", action="store_true")
+    arg_parser.add_argument("--blur", help="Gaussian blur ammount", type=int, choices=range(0, 11), default=0)
+
     arg_parser.add_argument("--maxdepth", help="Max 3D depth to use", type=_restricted_float, default=0.5)
     args = arg_parser.parse_args()
     print(args)
