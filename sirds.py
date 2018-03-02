@@ -9,7 +9,8 @@ from random import choice, random
 # This "PIL" refers to Pillow, the PIL fork. Check https://pillow.readthedocs.io/en/3.3.x
 from PIL import Image as im
 from PIL import ImageDraw as imd
-from PIL import ImageFilter as imf
+from PIL import ImageFilter as imflt
+from PIL import ImageFont as imf
 
 # Program info
 PROGRAM_VERSION = "2.0"
@@ -128,15 +129,14 @@ def make_stereogram(parsed_args):
     """
     # Load stereogram depthmap
     if parsed_args.text:
-        dm = make_depth_text(parsed_args.text, parsed_args.maxdepth, 20, DEFAULT_DEPTHTEXT_FONT)
+        dm = make_depth_text(parsed_args.text, parsed_args.maxdepth, DEFAULT_DEPTHTEXT_FONT)
     else:
         dm = load_file(parsed_args.depthmap, 'L')
     if dm is None:
         print("Aborting")
         exit(1)
     # Apply gaussian blur filter
-    if parsed_args.blur > 1:
-        dm = dm.filter(imf.GaussianBlur(parsed_args.blur))
+    dm = dm.filter(imflt.GaussianBlur(parsed_args.blur))
 
     # Create base pattern
     background, isimg = make_background(dm.size, "" if parsed_args.dots else parsed_args.pattern)
@@ -180,7 +180,7 @@ def make_stereogram(parsed_args):
     return background
 
 
-def make_depth_text(text, depth=50, fontsize=50, font=DEFAULT_DEPTHTEXT_FONT):
+def make_depth_text(text, depth=0.5, font=DEFAULT_DEPTHTEXT_FONT):
     """
     Makes a text depthmap
 
@@ -188,10 +188,8 @@ def make_depth_text(text, depth=50, fontsize=50, font=DEFAULT_DEPTHTEXT_FONT):
     ----------
     text : str
         Text to generate
-    depth : int
+    depth : float, from 0 to 1
         Desired depth
-    fontsize : int
-        Size of text
     font : str
         Further font specification
 
@@ -200,20 +198,21 @@ def make_depth_text(text, depth=50, fontsize=50, font=DEFAULT_DEPTHTEXT_FONT):
     PIL.Image.Image
         Generated depthmap image
     """
-    import PIL.ImageFont as imf
-    if depth < 0: depth = 0
-    if depth > 100: depth = 100
     fontroot = "/usr/share/fonts/truetype"
     fontdir = "{}/{}.ttf".format(fontroot, font)
     # Create image (grayscale)
     i = im.new('L', SIZE, "black")
     # Draw text with appropriate gray level
-    fnt = imf.truetype(fontdir, fontsize)
+    font_size = 1
+    fnt = imf.truetype(fontdir, font_size)
+    while fnt.getsize(text)[0] < SIZE[0]*0.9 and fnt.getsize(text)[1] < SIZE[1]*0.9:
+        font_size += 1
+        fnt = imf.truetype(fontdir, font_size)
     imd.Draw(i).text(
         ((SIZE[0] / 2 - fnt.getsize(text)[0] / 2,
           SIZE[1] / 2 - fnt.getsize(text)[1] / 2)),
         text, font=fnt,
-        fill=((int)(255.0 * depth / 100)))
+        fill=((int)(255.0 * depth)))
     return i
 
 
@@ -257,10 +256,17 @@ def obtain_args():
     """
     Retrieves arguments and parses them to a dict.
     """
-    def _restricted_float(x):
+    def _restricted_depth(x):
         x = float(x)
         min = 0.0
         max = 1.0
+        if x < min or x > max:
+            raise argparse.ArgumentTypeError("{} not in range [{}, {}]".format(x, min, max))
+        return x
+    def _restricted_blur(x):
+        x = int(x)
+        min = 0
+        max = 100
         if x < min or x > max:
             raise argparse.ArgumentTypeError("{} not in range [{}, {}]".format(x, min, max))
         return x
@@ -283,9 +289,9 @@ def obtain_args():
     viewmode_arg_group = arg_parser.add_mutually_exclusive_group(required=True)
     viewmode_arg_group.add_argument("--wall", "-w", help="Wall eyed mode", action="store_true")
     viewmode_arg_group.add_argument("--cross", "-c", help="Cross eyed mode", action="store_true")
-    arg_parser.add_argument("--blur", help="Gaussian blur ammount", type=int, choices=range(1, 11), default=1)
+    arg_parser.add_argument("--blur", help="Gaussian blur ammount", type=_restricted_blur, default=2)
 
-    arg_parser.add_argument("--maxdepth", help="Max 3D depth to use", type=_restricted_float, default=0.5)
+    arg_parser.add_argument("--maxdepth", help="Max 3D depth to use", type=_restricted_depth, default=0.5)
     args = arg_parser.parse_args()
     print(args)
     return args
@@ -306,27 +312,6 @@ if __name__ == "__main__":
     main()
 
 """
-Options:
-
-    Depthmap
-        - Can be Random or a specific image
-            # TODO: Support images from URLs
-    Pattern
-        - Can be Random (from a list), an image or dot pattern
-    Mode
-        - Wall eyed or cross eyed
-    Blur
-        - Blur amount
-    Max Depth
-        - To normalize depthmap
-
-"""
-
-
-
-
-
-"""
 Problems:
 When image sharply changes from one depth to a different one, a part of the surface edge repeats to the right and left.
 Internet's explanation is that there are some points one eye shouldn't be able to see, but we nonetheless consider them
@@ -334,8 +319,8 @@ in the stereogram. They say it can be fixed... but how?
 This is called Hidden Surface Removal.
 """
 
-# TODO: Uncouple strings and common definitions, remove hardcoded messages, dict keys... that sort of stuff
 # TODO: Expand grayscale between the two extremes (enhances near-flat depth maps)
 # TODO: Try to enlarge grayscale depth
 # TODO: Fix Cross-eyed bug
-# TODO: Try to fix broken fin on shark
+# TODO: Try to fix broken fin on shark (Hidden Surface Removal?)
+# TODO: Provide options for dots settings
