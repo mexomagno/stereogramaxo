@@ -113,6 +113,64 @@ def get_random(whatfile="depthmap"):
     return folder + "/" + choice(os.listdir(folder))
 
 
+def redistribute_grays(img_object, gray_height):
+    """
+    For a grayscale depthmap, compresses the gray range to be between 0 and the max gray height
+
+    Parameters
+    ----------
+    img_object : PIL.Image.Image
+        The open image. Must be grayscale
+    gray_height : float
+        Max gray. 0 = black. 1 = white.
+
+    Returns
+    -------
+    PIL.Image.Image
+        Modified image object
+    """
+    if img_object.mode != "L":
+        img_object = img_object.convert("L")
+    # Determine min and max gray value
+    min_gray = {
+        "point": (0, 0),
+    }
+    min_gray["value"] = img_object.getpixel(min_gray["point"])
+    max_gray = {
+        "point": (0, 0),
+    }
+    max_gray["value"] = img_object.getpixel(max_gray["point"])
+
+    for x in range(img_object.size[0]):
+        for y in range(img_object.size[1]):
+            this_gray = img_object.getpixel((x, y))
+            if this_gray > img_object.getpixel(max_gray["point"]):
+                max_gray["point"] = (x, y)
+                max_gray["value"] = this_gray
+            if this_gray < img_object.getpixel(min_gray["point"]):
+                min_gray["point"] = (x, y)
+                min_gray["value"] = this_gray
+
+    print "Min: {}, Max: {}".format(min_gray["value"], max_gray["value"])
+    # Transform to new scale
+    old_min = min_gray["value"]
+    old_max = max_gray["value"]
+    old_interval = old_max - old_min
+    new_min = 0
+    new_max = int(255.0 * gray_height)
+    new_interval = new_max - new_min
+
+    conv_factor = float(new_interval)/float(old_interval)
+    print "New max: {}, Conversion factor: {}".format(new_max,  conv_factor)
+
+    pixels = img_object.load()
+    for x in range(img_object.size[0]):
+        for y in range(img_object.size[1]):
+            pixels[x, y] = int((pixels[x, y] * conv_factor)) + new_min
+    return img_object
+
+
+
 def make_stereogram(parsed_args):
     """
     Actually generates the stereogram.
@@ -129,14 +187,23 @@ def make_stereogram(parsed_args):
     """
     # Load stereogram depthmap
     if parsed_args.text:
-        dm = make_depth_text(parsed_args.text, parsed_args.maxdepth, DEFAULT_DEPTHTEXT_FONT)
+        dm = make_depth_text(parsed_args.text, DEFAULT_DEPTHTEXT_FONT)
     else:
         dm = load_file(parsed_args.depthmap, 'L')
     if dm is None:
         print("Aborting")
         exit(1)
+
     # Apply gaussian blur filter
     dm = dm.filter(imflt.GaussianBlur(parsed_args.blur))
+
+
+    # Redistribute grayscale range
+    if parsed_args.text:
+        dm = redistribute_grays(dm, parsed_args.forcedepth if parsed_args.forcedepth is not None else 0.5)
+    elif parsed_args.forcedepth:
+        dm = redistribute_grays(dm, parsed_args.forcedepth)
+
 
     # Create base pattern
     background, isimg = make_background(dm.size, "" if parsed_args.dots else parsed_args.pattern)
@@ -180,7 +247,7 @@ def make_stereogram(parsed_args):
     return background
 
 
-def make_depth_text(text, depth=0.5, font=DEFAULT_DEPTHTEXT_FONT):
+def make_depth_text(text, font=DEFAULT_DEPTHTEXT_FONT):
     """
     Makes a text depthmap
 
@@ -188,8 +255,6 @@ def make_depth_text(text, depth=0.5, font=DEFAULT_DEPTHTEXT_FONT):
     ----------
     text : str
         Text to generate
-    depth : float, from 0 to 1
-        Desired depth
     font : str
         Further font specification
 
@@ -212,7 +277,7 @@ def make_depth_text(text, depth=0.5, font=DEFAULT_DEPTHTEXT_FONT):
         ((SIZE[0] / 2 - fnt.getsize(text)[0] / 2,
           SIZE[1] / 2 - fnt.getsize(text)[1] / 2)),
         text, font=fnt,
-        fill=((int)(255.0 * depth)))
+        fill=((int)(255.0)))
     return i
 
 
@@ -263,6 +328,7 @@ def obtain_args():
         if x < min or x > max:
             raise argparse.ArgumentTypeError("{} not in range [{}, {}]".format(x, min, max))
         return x
+
     def _restricted_blur(x):
         x = int(x)
         min = 0
@@ -270,6 +336,7 @@ def obtain_args():
         if x < min or x > max:
             raise argparse.ArgumentTypeError("{} not in range [{}, {}]".format(x, min, max))
         return x
+
     def _supported_image_file(filename):
         if not os.path.exists(filename):
             raise argparse.ArgumentTypeError("File does not exist")
@@ -278,20 +345,21 @@ def obtain_args():
             raise argparse.ArgumentTypeError("File extension is not supported. Valid options are: {}".format(
                 SUPPORTED_IMAGE_EXTENSIONS))
         return filename
+
     arg_parser = argparse.ArgumentParser(description="Stereogramaxo: An autostereogram generator, by Mexomagno")
     depthmap_arg_group = arg_parser.add_mutually_exclusive_group(required=True)
     depthmap_arg_group.add_argument("--depthmap", "-d", help="Path to a depthmap image file", type=_supported_image_file)
     depthmap_arg_group.add_argument("--text", "-t", help="Generate a depthmap with text", type=str)
     pattern_arg_group = arg_parser.add_mutually_exclusive_group(required=True)
     pattern_arg_group.add_argument("--dots", help="Generate a dot pattern for the background", action="store_true")
-    pattern_arg_group.add_argument("--pattern", help="Path to an image file to use as background pattern",
+    pattern_arg_group.add_argument("--pattern", "-p", help="Path to an image file to use as background pattern",
                             type=_supported_image_file)
     viewmode_arg_group = arg_parser.add_mutually_exclusive_group(required=True)
     viewmode_arg_group.add_argument("--wall", "-w", help="Wall eyed mode", action="store_true")
     viewmode_arg_group.add_argument("--cross", "-c", help="Cross eyed mode", action="store_true")
-    arg_parser.add_argument("--blur", help="Gaussian blur ammount", type=_restricted_blur, default=2)
+    arg_parser.add_argument("--blur", "-b", help="Gaussian blur ammount", type=_restricted_blur, default=2)
 
-    arg_parser.add_argument("--maxdepth", help="Max 3D depth to use", type=_restricted_depth, default=0.5)
+    arg_parser.add_argument("--forcedepth", help="Force max depth to use", type=_restricted_depth)
     args = arg_parser.parse_args()
     print(args)
     return args
@@ -301,9 +369,9 @@ def main():
     parsed_args = obtain_args()
     print("Generating...")
     i = make_stereogram(parsed_args)
-    print "Saving..."
     show_img(i)
     return
+    print "Saving..."
     output = save_to_file(i)
     if output is None:
         print "Error: Could not save to file"
@@ -322,5 +390,7 @@ This is called Hidden Surface Removal.
 # TODO: Expand grayscale between the two extremes (enhances near-flat depth maps)
 # TODO: Try to enlarge grayscale depth
 # TODO: Fix Cross-eyed bug
+# TODO: Fix text left cropping
 # TODO: Try to fix broken fin on shark (Hidden Surface Removal?)
 # TODO: Provide options for dots settings
+# TODO: Provide option to match pattern height
