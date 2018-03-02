@@ -3,10 +3,13 @@
 import os
 import sys
 import json
+import time
 import argparse
 from random import choice, random
 # This "PIL" refers to Pillow, the PIL fork. Check https://pillow.readthedocs.io/en/3.3.x
-from PIL import Image as im, ImageDraw as imd
+from PIL import Image as im
+from PIL import ImageDraw as imd
+from PIL import ImageFilter as imf
 
 # Program info
 PROGRAM_VERSION = "2.0"
@@ -30,7 +33,7 @@ PROGRAM_VERSION = "2.0"
 # ]
 SUPPORTED_IMAGE_EXTENSIONS = [".png", ".jpeg", ".bmp", ".eps", ".gif", ".jpg", ".im", ".msp", ".pcx", ".ppm", ".spider", ".tiff", ".webp", ".xbm"]
 DEFAULT_DEPTHTEXT_FONT = "freefont/FreeSansBold"
-
+DEFAULT_OUTPUT_EXTENSION = SUPPORTED_IMAGE_EXTENSIONS[0]
 # CONSTANTS
 DMFOLDER = "depth_maps"
 PATTERNFOLDER = "patterns"
@@ -41,9 +44,8 @@ SIZE = (800, 600)
 PATTERN_FRACTION = 8.0
 OVERSAMPLE = 1.8
 SHIFT_RATIO = 0.3
-LEFT_TO_RIGHT = False  # Defines how the pixels will be shifted (left to right or center to sides
+LEFT_TO_RIGHT = False  # Defines how the pixels will be shifted (left to right or center to sides)
 DOT_DRAW_PROBABILITY = 0.4  # Decides how often a random dot is drawn
-SMOOTH_DEPTHMAP = True
 SMOOTH_FACTOR = 1.8
 DOT_OVER_PATTERN_PROBABILITY = 0.3  # Defines how often dots are chosen over pattern on random pattern selection
 
@@ -110,43 +112,34 @@ def get_random(whatfile="depthmap"):
     return folder + "/" + choice(os.listdir(folder))
 
 
-def make_stereogram(options, patt="", mode="we"):
+def make_stereogram(parsed_args):
     """
     Actually generates the stereogram.
 
     Parameters
     ----------
-    options : dict
-        User-issued options
-    patt : str
-        pattern filename or "dots"
-    mode : str
-        Wall-eyed or cross-eyed
+    parsed_args : Namespace
+        Parsed options
 
     Returns
     -------
     PIL.Image.Image :
         Generated stereogram image
     """
-    # Load options
-    patt = "" if "pattern" not in options else options["pattern"]
-    mode = "we" if "cross-eyed" not in options else ("ce" if options["cross-eyed"] else "we")
     # Load stereogram depthmap
-    if options["depthmap"] == "text":
-        dm = make_depth_text(options["text"]["value"], options["text"]["depth"], options["text"]["fontsize"],
-                             DEFAULT_DEPTHTEXT_FONT)
+    if parsed_args.text:
+        dm = make_depth_text(parsed_args.text, parsed_args.maxdepth, 20, DEFAULT_DEPTHTEXT_FONT)
     else:
-        dm = load_file((get_random("depthmap") if options["depthmap"] == "R" else options["depthmap"]), 'L')
-    if (dm == None):
+        dm = load_file(parsed_args.depthmap, 'L')
+    if dm is None:
         print("Aborting")
         exit(1)
     # Apply gaussian blur filter
-    if SMOOTH_DEPTHMAP:
-        from PIL import ImageFilter as imf
-        dm = dm.filter(imf.GaussianBlur(SMOOTH_FACTOR))
+    if parsed_args.blur > 1:
+        dm = dm.filter(imf.GaussianBlur(parsed_args.blur))
 
     # Create base pattern
-    background, isimg = make_background(dm.size, patt)
+    background, isimg = make_background(dm.size, "" if parsed_args.dots else parsed_args.pattern)
     # Oversample on image-pattern based background (NOT dots, bad results!)
     if isimg:
         dm = dm.resize(((int)(dm.size[0] * OVERSAMPLE), (int)(dm.size[1] * OVERSAMPLE)))
@@ -166,18 +159,18 @@ def make_stereogram(options, patt="", mode="we"):
         if LEFT_TO_RIGHT:
             for c in range(pattern_width, background.size[0]):
                 # From left to right
-                shift = (dm_pix[(c - pattern_width), f] if mode == "we" else (
+                shift = (dm_pix[(c - pattern_width), f] if parsed_args.wall else (
                 255 - dm_pix[(c - pattern_width), f])) / 255.0 * ponderador
                 pt_pix[c, f] = pt_pix[c - pattern_width + shift, f]
         else:
             for c in range(x_medios_bg, background.size[0]):
                 # Center to right
-                shift = (dm_pix[(c - pattern_width), f] if mode == "we" else (
+                shift = (dm_pix[(c - pattern_width), f] if parsed_args.wall else (
                 255 - dm_pix[(c - pattern_width), f])) / 255.0 * ponderador
                 pt_pix[c, f] = pt_pix[c - pattern_width + shift, f]
             for c in range(x_medios_bg - 1, pattern_width - 1, -1):
                 # Center to left
-                shift = (dm_pix[c, f] if mode == "we" else (255 - dm_pix[c, f])) / 255.0 * ponderador
+                shift = (dm_pix[c, f] if parsed_args.wall else (255 - dm_pix[c, f])) / 255.0 * ponderador
                 pt_pix[c, f] = pt_pix[c + pattern_width - shift, f]
     if not LEFT_TO_RIGHT:
         background.paste(background.crop((pattern_width, 0, 2 * pattern_width, background.size[1])), rect)
@@ -224,53 +217,28 @@ def make_depth_text(text, depth=50, fontsize=50, font=DEFAULT_DEPTHTEXT_FONT):
     return i
 
 
-def save_to_file(img, name, fmt=""):
-    valid_ext = []
-    for ext in SUPPORTED_OUTPUT_IMAGE_FORMATS:
-        valid_ext.append(ext[1].split(".")[1].lower())
-    print(valid_ext)
-    # Three ways to specify a format:
-    #   1: Within filename
-    #   2: With "format" parameter
-    #   3: Default file format
-    # Priority is: 1, then 2, then 3
+def save_to_file(img_object):
+    file_ext = DEFAULT_OUTPUT_EXTENSION
     # Trying to save with image name format
-    filename, fileformat = os.path.splitext(os.path.basename(name))
-    fileformat = fileformat.replace(".", "")
-    dirname = os.path.dirname(name)
-    if dirname == "":
-        savefolder = SAVEFOLDER
-    else:
-        savefolder = dirname
+    savefolder = SAVEFOLDER
     # Try to create folder, if it doesn't exist already
     if not os.path.exists(savefolder):
         try:
             os.mkdir(savefolder)
-        except IOError, msg:
-            print("Cannot create file: {}".format(msg))
+        except IOError as e:
+            print("Cannot create file: {}".format(e))
             exit(1)
-    if fileformat not in valid_ext:
-        # Try with format parameter
-        fileformat = fmt
-        if fileformat not in valid_ext:
-            # Use image extension
-            fileformat = img.format
-            if fileformat not in valid_ext:
-                fileformat = valid_ext[0]
     try:
-        finalname = filename + "." + fileformat
-        # Check file existence
-        i = 1
-        while os.path.exists(savefolder + "/" + finalname):
-            if i == 1:
-                print("WARNING: File '{}' already exists in '{}'".format(finalname, savefolder))
-            finalname = "{} ({}).{}".format(filename, i, fileformat)
-            i += 1
-        r = img.save(savefolder + "/" + finalname)
-        print("Saved file as '{}/{}'".format(savefolder, finalname))
-        return finalname
-    except IOError, msg:
-        print("Error trying to save image as '{}/{}': {}".format(savefolder, filename, msg))
+        outfile_name = u"{date}{ext}".format(
+            date=time.strftime("%Y%m%d-%H%M%S", time.localtime()),
+            ext=file_ext
+        )
+        out_path = os.path.join(savefolder, outfile_name)
+        r = img_object.save(out_path)
+        print "Saved file in {}".format(out_path)
+        return out_path
+    except IOError as e:
+        print("Error trying to save image: {}".format(e))
         return None
 
 
@@ -285,7 +253,7 @@ def load_file(name, type=''):
     return i
 
 
-def validate_args():
+def obtain_args():
     """
     Retrieves arguments and parses them to a dict.
     """
@@ -307,7 +275,7 @@ def validate_args():
     arg_parser = argparse.ArgumentParser(description="Stereogramaxo: An autostereogram generator, by Mexomagno")
     depthmap_arg_group = arg_parser.add_mutually_exclusive_group(required=True)
     depthmap_arg_group.add_argument("--depthmap", "-d", help="Path to a depthmap image file", type=_supported_image_file)
-    depthmap_arg_group.add_argument("--text", "-t", help="Generate a depthmap with text", type=str, default="Hello")
+    depthmap_arg_group.add_argument("--text", "-t", help="Generate a depthmap with text", type=str)
     pattern_arg_group = arg_parser.add_mutually_exclusive_group(required=True)
     pattern_arg_group.add_argument("--dots", help="Generate a dot pattern for the background", action="store_true")
     pattern_arg_group.add_argument("--pattern", help="Path to an image file to use as background pattern",
@@ -315,84 +283,24 @@ def validate_args():
     viewmode_arg_group = arg_parser.add_mutually_exclusive_group(required=True)
     viewmode_arg_group.add_argument("--wall", "-w", help="Wall eyed mode", action="store_true")
     viewmode_arg_group.add_argument("--cross", "-c", help="Cross eyed mode", action="store_true")
-    arg_parser.add_argument("--blur", help="Gaussian blur ammount", type=int, choices=range(0, 11), default=0)
+    arg_parser.add_argument("--blur", help="Gaussian blur ammount", type=int, choices=range(1, 11), default=1)
 
     arg_parser.add_argument("--maxdepth", help="Max 3D depth to use", type=_restricted_float, default=0.5)
     args = arg_parser.parse_args()
     print(args)
     return args
 
-    #
-    #
-    # valid_args = {"depthmap": ["-d", "--depthmap"],
-    #               "pattern": ["-p", "--pattern"],
-    #               "viewmode": ["-v", "--viewmode"],
-    #               "random": ["--random", "-R"],  # Parámetro: Nada
-    #               "help" :["-h", "--help", "-?"]}  # Parámetro: Nada
-    # already_set = {"depthmap": False,
-    #                "pattern": False,
-    #                "output": False,
-    #                "cross-eyed": False}
-    # # Comportamiento default
-    # opts = {"depthmap": "",  # Sin especificar
-    #         "pattern": "dots",  # Patrón de puntos
-    #         "output": "",  # Sin especificar
-    #         "cross-eyed": False}  # Wall-eyed
-    # args = sys.argv
-    # # Checkear que argumentos son válidos
-    # # 	- Ver que argumento es válido
-    # #	- Ver que parámetro del argumento existe y es válido
-    # i = 1  # Indice del argumento
-    # while i < len(args):
-    #     if args[i] in valid_args["help"]:
-    #         showHelp()
-    #     if args[i] in valid_args["random"]:
-    #         if already_set["depthmap"] or already_set["pattern"]:
-    #             showHelp("Múltiple definición para 'depthmap' y/o 'pattern'")
-    #         opts["depthmap"] = opts["pattern"] = "R"
-    #         already_set["depthmap"] = already_set["pattern"] = True
-    #         i += 1
-    #         continue
-    #     if args[i] in valid_args["cross-eyed"]:
-    #         if already_set["cross-eyed"]:
-    #             showHelp("Múltiple declaración para '{}'".format(args[i]))
-    #         opts["cross-eyed"] = True
-    #         already_set["cross-eyed"] = True
-    #         i += 1
-    #         continue
-    #     # Si no es argumento válido
-    #     if args[i] not in (valid_args["depthmap"] + valid_args["pattern"] + valid_args["output"]):
-    #         showHelp("Argumento desconocido: '{}'".format(args[i]))
-    #     # Si no entregó parámetro para el argumento, error
-    #     if i == len(args) - 1 or args[i + 1] in (
-    #                         valid_args["depthmap"] + valid_args["pattern"] + valid_args["output"] + valid_args[
-    #                 "random"] + valid_args["help"] + valid_args["cross-eyed"]):
-    #         showHelp("Debe especificar parámetro para '{}'".format(args[i]))
-    #     # Ver qué parámetro se está seteando
-    #     for opt in ["depthmap", "pattern", "output"]:
-    #         if args[i] in valid_args[opt]:
-    #             if already_set[opt]:
-    #                 showHelp("Múltiple declaración para '{}'".format(args[i]))
-    #             opts[opt] = args[i + 1]
-    #             already_set[opt] = True
-    #             break
-    #     i += 2
-    # return opts
-
 
 def main():
-    opts = validate_args()
-    return
+    parsed_args = obtain_args()
     print("Generating...")
-    i = make_stereogram(new_settings_dict)
-    print("Displaying...")
+    i = make_stereogram(parsed_args)
+    print "Saving..."
     show_img(i)
-    if new_settings_dict["output"] != "":
-        print("Saving...")
-        output = save_to_file(i, new_settings_dict["output"])
-        if output is None:
-            print("Oops! Couldn't save file!!")
-
+    return
+    output = save_to_file(i)
+    if output is None:
+        print "Error: Could not save to file"
 
 if __name__ == "__main__":
     main()
