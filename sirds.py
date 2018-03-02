@@ -1,9 +1,10 @@
 #!/usr/bin/python
 # coding: utf-8
-from __future__ import print_function
 import os
-from random import choice, random
+import sys
 import json
+import argparse
+from random import choice, random
 # This "PIL" refers to Pillow, the PIL fork. Check https://pillow.readthedocs.io/en/3.3.x
 from PIL import Image as im, ImageDraw as imd
 
@@ -46,157 +47,6 @@ DOT_DRAW_PROBABILITY = 0.4  # Decides how often a random dot is drawn
 SMOOTH_DEPTHMAP = True
 SMOOTH_FACTOR = 1.8
 DOT_OVER_PATTERN_PROBABILITY = 0.3  # Defines how often dots are chosen over pattern on random pattern selection
-
-
-class _PersistentSettings:
-    # Depthmap modes
-    DEPTHMAP_TEXT = "depthmap_text"
-    DEPTHMAP_FILE = "depthmap_file"
-
-    _DEPTHMAP_FILE = "depthmap_file"
-    _DEPTHMAP_TEXT = "depthmap_text"
-    _PATTERN = "pattern"
-    _EYE_MODE = "eye_mode"
-    _OUTPUT_FILE = "output_file"
-    DOT_PATTERN = "D"
-    RANDOM = "R"
-
-    _SETTINGS_CONTRACT = {
-        _DEPTHMAP_FILE: {
-            "type": str,
-            "default": {
-                "value": "depth_maps/tiburon.png",  # path if file, string if text
-                "selected": True
-            },
-        },
-        _DEPTHMAP_TEXT: {
-            "type": str,
-            "default": {
-                "value": "Hello World",
-                "selected": False
-            }
-        },
-        _PATTERN: {
-            "type": str,
-            "default": DOT_PATTERN  # "R" == random depthmap, "D" == dots. Else, a path must be inputted
-        },
-        _EYE_MODE: {
-            "type": bool,  # Wall-eyed (True) or cross-eyed (False)
-            "default": True,
-        },
-        _OUTPUT_FILE: {
-            "type": str,
-            "default": ""
-        }
-    }
-
-    _DEFAULT_FILE_PATH = ".opts.json"
-
-    def __init__(self):
-        # Load everything from file to dict
-        self._settings_dict = self._read_or_construct()
-
-    def __unicode__(self):
-        return u"{}".format(json.dumps(self._settings_dict, indent=4, sort_keys=True))
-
-    def dump_to_file(self):
-        """ Save to a file """
-        self._save_to_file(self._settings_dict)
-
-    # DEPTHMAPH
-    def get_depthmap_text(self):
-        return self._settings_dict[self._DEPTHMAP_TEXT]["value"]
-
-    def get_depthmap_path(self):
-        return self._settings_dict[self._DEPTHMAP_FILE]["value"]
-
-    def get_depthmap_selection(self):
-        if self._settings_dict[self._DEPTHMAP_TEXT]["selected"]:
-            return "text"
-        if self._settings_dict[self._DEPTHMAP_FILE]["selected"]:
-            return "file"
-
-    def select_depthmap(self, kind, value):
-        if kind == "text":
-            self._settings_dict[self._DEPTHMAP_TEXT]["value"] = value
-            self._settings_dict[self._DEPTHMAP_TEXT]["selected"] = True
-            self._settings_dict[self._DEPTHMAP_FILE]["selected"] = False
-        else:
-            self._settings_dict[self._DEPTHMAP_FILE]["value"] = value
-            self._settings_dict[self._DEPTHMAP_FILE]["selected"] = True
-            self._settings_dict[self._DEPTHMAP_TEXT]["selected"] = False
-
-    # PATTERN
-    def get_pattern_selection(self):
-        pattern = self._settings_dict[self._PATTERN]
-        if pattern != self.DOT_PATTERN and pattern != self.RANDOM and not os.path.exists(pattern):
-            raise ValueError("Pattern file doesn't exist")
-        return pattern
-
-    def select_pattern(self, pattern):
-        if pattern != self.DOT_PATTERN and pattern != self.RANDOM and not os.path.exists(pattern):
-            raise ValueError("Pattern file doesn't exist")
-        self._settings_dict[self._PATTERN] = pattern
-
-    @classmethod
-    def _is_dict_valid(cls, in_dict):
-        return set(cls._SETTINGS_CONTRACT.keys()) == set(in_dict.keys())
-
-    @classmethod
-    def _read_from_file(cls, file_path):
-        if file_path is None or not os.path.exists(file_path):
-            raise ValueError("File doesn't exist!")
-        with open(file_path, "r") as settings_file:
-            try:
-                read_dict = json.load(settings_file)
-            except ValueError:
-                raise ValueError("Not a valid JSON-structured file")
-            if not cls._is_dict_valid(read_dict):
-                raise ValueError("Invalid settings")
-            print("Correctly read settings from '{}'".format(file_path))
-            return read_dict
-
-    @classmethod
-    def _read_or_construct(cls):
-        if not os.path.exists(cls._DEFAULT_FILE_PATH):
-            # Settings file does not exist. Create one with defaults
-            cls._generate_presets_file()
-        # Now by all means settings file exists. Load
-        return cls._read_from_file(cls._DEFAULT_FILE_PATH)
-
-    @classmethod
-    def _generate_presets_file(cls):
-        new_settings_dict = dict()
-        for key in cls._SETTINGS_CONTRACT:
-            new_settings_dict[key] = cls._SETTINGS_CONTRACT[key]["default"]
-        cls._save_to_file(new_settings_dict)
-
-    @classmethod
-    def _save_to_file(cls, settings_dict, file_path=None):
-        """
-        Saves a settings dict to a file
-
-        Parameters
-        ----------
-        settings_dict : dict
-            The settings dict. Must be valid
-        file_path : str
-            Path where settings will be stored
-
-        Returns
-        -------
-        None
-        """
-        if file_path is None:
-            file_path = cls._DEFAULT_FILE_PATH
-        # Validate settings dict
-        if not cls._is_dict_valid(settings_dict):
-            raise ValueError("Invalid settings dict")
-        # Store
-        with open(file_path, "w") as save_file:
-            json.dump(settings_dict, save_file, indent=4, sort_keys=True)
-        print("Saved settings to '{}'".format(file_path))
-
 
 def show_img(i):
     i.show(command="eog")
@@ -436,11 +286,90 @@ def load_file(name, type=''):
     return i
 
 
-def main():
-    loaded_settings = _PersistentSettings()
-    print(u"Loaded settings: {}".format(loaded_settings.__unicode__()))
-    return
+def validate_args():
+    """
+    Retrieves arguments and parses them to a dict.
+    """
+    arg_parser = argparse.ArgumentParser(description="Stereogramaxo: An autostereogram generator, by Mexomagno")
+    arg_parser.add_argument("depthmap", help="Path to a depthmap image file")
+    arg_parser.add_argument("--pattern", help="Path to an image file to use as background pattern", type=str, default="dots")
+    viewmode = arg_parser.add_mutually_exclusive_group(required=True)
+    viewmode.add_argument("--wall", "-w", help="Wall eyed mode", action="store_true")
+    viewmode.add_argument("--cross", "-c", help="Cross eyed mode", action="store_true")
+    arg_parser.add_argument("--blur", help="Gaussian blur ammount", type=int, choices=range(0, 11), default=0)
+    def _restricted_float(x):
+        x = float(x)
+        min = 0.0
+        max = 1.0
+        if x < min or x > max:
+            raise argparse.ArgumentTypeError("{} not in range [{}, {}]".format(x, min, max))
+        return x
+    arg_parser.add_argument("--maxdepth", help="Max 3D depth to use", type=_restricted_float, default=0.5)
+    args = arg_parser.parse_args()
+    print(args)
+    return args
 
+    #
+    #
+    # valid_args = {"depthmap": ["-d", "--depthmap"],
+    #               "pattern": ["-p", "--pattern"],
+    #               "viewmode": ["-v", "--viewmode"],
+    #               "random": ["--random", "-R"],  # Parámetro: Nada
+    #               "help" :["-h", "--help", "-?"]}  # Parámetro: Nada
+    # already_set = {"depthmap": False,
+    #                "pattern": False,
+    #                "output": False,
+    #                "cross-eyed": False}
+    # # Comportamiento default
+    # opts = {"depthmap": "",  # Sin especificar
+    #         "pattern": "dots",  # Patrón de puntos
+    #         "output": "",  # Sin especificar
+    #         "cross-eyed": False}  # Wall-eyed
+    # args = sys.argv
+    # # Checkear que argumentos son válidos
+    # # 	- Ver que argumento es válido
+    # #	- Ver que parámetro del argumento existe y es válido
+    # i = 1  # Indice del argumento
+    # while i < len(args):
+    #     if args[i] in valid_args["help"]:
+    #         showHelp()
+    #     if args[i] in valid_args["random"]:
+    #         if already_set["depthmap"] or already_set["pattern"]:
+    #             showHelp("Múltiple definición para 'depthmap' y/o 'pattern'")
+    #         opts["depthmap"] = opts["pattern"] = "R"
+    #         already_set["depthmap"] = already_set["pattern"] = True
+    #         i += 1
+    #         continue
+    #     if args[i] in valid_args["cross-eyed"]:
+    #         if already_set["cross-eyed"]:
+    #             showHelp("Múltiple declaración para '{}'".format(args[i]))
+    #         opts["cross-eyed"] = True
+    #         already_set["cross-eyed"] = True
+    #         i += 1
+    #         continue
+    #     # Si no es argumento válido
+    #     if args[i] not in (valid_args["depthmap"] + valid_args["pattern"] + valid_args["output"]):
+    #         showHelp("Argumento desconocido: '{}'".format(args[i]))
+    #     # Si no entregó parámetro para el argumento, error
+    #     if i == len(args) - 1 or args[i + 1] in (
+    #                         valid_args["depthmap"] + valid_args["pattern"] + valid_args["output"] + valid_args[
+    #                 "random"] + valid_args["help"] + valid_args["cross-eyed"]):
+    #         showHelp("Debe especificar parámetro para '{}'".format(args[i]))
+    #     # Ver qué parámetro se está seteando
+    #     for opt in ["depthmap", "pattern", "output"]:
+    #         if args[i] in valid_args[opt]:
+    #             if already_set[opt]:
+    #                 showHelp("Múltiple declaración para '{}'".format(args[i]))
+    #             opts[opt] = args[i + 1]
+    #             already_set[opt] = True
+    #             break
+    #     i += 2
+    # return opts
+
+
+def main():
+    opts = validate_args()
+    return
     print("Generating...")
     i = make_stereogram(new_settings_dict)
     print("Displaying...")
@@ -454,6 +383,27 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+"""
+Options:
+
+    Depthmap
+        - Can be Random or a specific image
+            # TODO: Support images from URLs
+    Pattern
+        - Can be Random (from a list), an image or dot pattern
+    Mode
+        - Wall eyed or cross eyed
+    Blur
+        - Blur amount
+    Max Depth
+        - To normalize depthmap
+
+"""
+
+
+
+
 
 """
 Problems:
