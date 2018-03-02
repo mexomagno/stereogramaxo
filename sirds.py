@@ -41,7 +41,8 @@ PATTERNFOLDER = "patterns"
 SAVEFOLDER = "saved"
 
 # SETTINGS
-SIZE = (800, 600)
+SIZE = (800, 600)  # px
+MAX_DIMENSION = 1500  # px
 PATTERN_FRACTION = 8.0
 OVERSAMPLE = 1.8
 SHIFT_RATIO = 0.3
@@ -120,7 +121,7 @@ def redistribute_grays(img_object, gray_height):
     Parameters
     ----------
     img_object : PIL.Image.Image
-        The open image. Must be grayscale
+        The open image
     gray_height : float
         Max gray. 0 = black. 1 = white.
 
@@ -151,7 +152,6 @@ def redistribute_grays(img_object, gray_height):
                 min_gray["point"] = (x, y)
                 min_gray["value"] = this_gray
 
-    print "Min: {}, Max: {}".format(min_gray["value"], max_gray["value"])
     # Transform to new scale
     old_min = min_gray["value"]
     old_max = max_gray["value"]
@@ -161,14 +161,12 @@ def redistribute_grays(img_object, gray_height):
     new_interval = new_max - new_min
 
     conv_factor = float(new_interval)/float(old_interval)
-    print "New max: {}, Conversion factor: {}".format(new_max,  conv_factor)
 
     pixels = img_object.load()
     for x in range(img_object.size[0]):
         for y in range(img_object.size[1]):
             pixels[x, y] = int((pixels[x, y] * conv_factor)) + new_min
     return img_object
-
 
 
 def make_stereogram(parsed_args):
@@ -226,14 +224,14 @@ def make_stereogram(parsed_args):
         if LEFT_TO_RIGHT:
             for c in range(pattern_width, background.size[0]):
                 # From left to right
-                shift = (dm_pix[(c - pattern_width), f] if parsed_args.wall else (
-                255 - dm_pix[(c - pattern_width), f])) / 255.0 * ponderador
+                this_x = min(max(c - pattern_width, 0), size[0]-1)
+                shift = (dm_pix[this_x, f] if parsed_args.wall else (255 - dm_pix[this_x, f])) / 255.0 * ponderador
                 pt_pix[c, f] = pt_pix[c - pattern_width + shift, f]
         else:
             for c in range(x_medios_bg, background.size[0]):
                 # Center to right
-                shift = (dm_pix[(c - pattern_width), f] if parsed_args.wall else (
-                255 - dm_pix[(c - pattern_width), f])) / 255.0 * ponderador
+                this_x = min(max(c - pattern_width, 0), size[0]-1)
+                shift = (dm_pix[this_x, f] if parsed_args.wall else (255 - dm_pix[this_x, f])) / 255.0 * ponderador
                 pt_pix[c, f] = pt_pix[c - pattern_width + shift, f]
             for c in range(x_medios_bg - 1, pattern_width - 1, -1):
                 # Center to left
@@ -314,6 +312,14 @@ def load_file(name, type=''):
     except IOError, msg:
         print("Picture couln't be loaded '{}': {}".format(name, msg))
         return None
+    # Resize if too big
+    if max(i.size) > MAX_DIMENSION:
+        max_dim = 0 if i.size[0] > i.size[1] else 1
+        old_max = i.size[max_dim]
+        new_max = MAX_DIMENSION
+        factor = new_max/float(old_max)
+        print "Image is big: {}. Resizing by a factor of {}".format(i.size, factor)
+        i = i.resize((int(i.size[0]*factor), int(i.size[1]*factor)))
     return i
 
 
@@ -387,8 +393,6 @@ in the stereogram. They say it can be fixed... but how?
 This is called Hidden Surface Removal.
 """
 
-# TODO: Expand grayscale between the two extremes (enhances near-flat depth maps)
-# TODO: Try to enlarge grayscale depth
 # TODO: Fix Cross-eyed bug
 # TODO: Fix text left cropping
 # TODO: Try to fix broken fin on shark (Hidden Surface Removal?)
