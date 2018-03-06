@@ -422,10 +422,10 @@ class _HTTPCode:
 
 
 def return_http_response(code, text):
-    print {
+    print json.dumps({
         "code": code,
         "text": text
-    }
+    })
 
 def main():
     parsed_args = obtain_args()

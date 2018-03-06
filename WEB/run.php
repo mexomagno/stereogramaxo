@@ -13,7 +13,7 @@ $response_data = "";
 switch($shell_retcode){
 	case 0:
 		http_response_code(200);
-		$response_data = $script_response;
+		$response_data = json_decode($script_response);
 		break;
 	case 126:
 		http_response_code(500);
@@ -22,6 +22,6 @@ switch($shell_retcode){
 		http_response_code(500);
 		$response_data = "Unknown error happened on the server"; 
 }
-
-echo $response_data
+header('Content-Type: application/json');
+echo json_encode($shell_retcode == 0 ? $response_data : array("error" => $response_data));
 ?>
