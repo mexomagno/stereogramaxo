@@ -80,7 +80,7 @@ def make_background(size, filename=""):
     if filename != "" and filename != "dots":
         pattern = load_file((get_random("pattern") if filename == "R" else filename))
         if pattern is None:
-            print("Error al cargar '{}'. Generando con puntos aleatorios.".format(filename))
+            #print("Error al cargar '{}'. Generando con puntos aleatorios.".format(filename))
             filename = ""
         else:
             is_image = True
@@ -196,7 +196,7 @@ def make_stereogram(parsed_args):
     else:
         dm = load_file(parsed_args.depthmap, 'L')
     if dm is None:
-        print("Aborting")
+        #print("Aborting")
         exit(1)
 
     # Apply gaussian blur filter
@@ -299,29 +299,48 @@ def make_depth_text(text, font=DEFAULT_DEPTHTEXT_FONT):
     return i
 
 
-def save_to_file(img_object):
+def save_to_file(img_object, output_dir=None):
+    """
+    Attempts to save the file
+
+    Parameters
+    ----------
+    img_object: PIL.Image.Image
+        The image object to save
+    output_dir : The directory where to save the file
+
+    Returns
+    -------
+    tuple(bool, str)
+        State: True if ok
+        Additional data: Path to stored image if success, else reason of failure
+
+    """
     file_ext = DEFAULT_OUTPUT_EXTENSION
     # Trying to save with image name format
-    savefolder = SAVEFOLDER
+    if output_dir is None:
+        savefolder = SAVEFOLDER
+    else:
+        savefolder = output_dir
     # Try to create folder, if it doesn't exist already
     if not os.path.exists(savefolder):
         try:
             os.mkdir(savefolder)
         except IOError as e:
-            print("Cannot create file: {}".format(e))
-            exit(1)
+            # print "Cannot create file: {}".format(e)
+            return False, "Could not create output directory '{}': {}".format(savefolder, e)
+    outfile_name = u"{date}{ext}".format(
+        date=time.strftime("%Y%m%d-%H%M%S", time.localtime()),
+        ext=file_ext
+    )
+    out_path = os.path.join(savefolder, outfile_name)
     try:
-        outfile_name = u"{date}{ext}".format(
-            date=time.strftime("%Y%m%d-%H%M%S", time.localtime()),
-            ext=file_ext
-        )
-        out_path = os.path.join(savefolder, outfile_name)
         r = img_object.save(out_path)
-        print "Saved file in {}".format(out_path)
-        return out_path
+        # print "Saved file in {}".format(out_path)
+        return True, out_path
     except IOError as e:
-        print("Error trying to save image: {}".format(e))
-        return None
+        # print("Error trying to save image: {}".format(e))
+        return False, "Could not create file '{}': {}".format(out_path, e)
 
 
 def load_file(name, type=''):
@@ -330,7 +349,7 @@ def load_file(name, type=''):
         if type != "":
             i = i.convert(type)
     except IOError, msg:
-        print("Picture couln't be loaded '{}': {}".format(name, msg))
+        #print("Picture couln't be loaded '{}': {}".format(name, msg))
         return None
     # Resize if too big
     if max(i.size) > MAX_DIMENSION:
@@ -338,7 +357,7 @@ def load_file(name, type=''):
         old_max = i.size[max_dim]
         new_max = MAX_DIMENSION
         factor = new_max/float(old_max)
-        print "Image is big: {}. Resizing by a factor of {}".format(i.size, factor)
+        #print "Image is big: {}. Resizing by a factor of {}".format(i.size, factor)
         i = i.resize((int(i.size[0]*factor), int(i.size[1]*factor)))
     return i
 
@@ -372,6 +391,11 @@ def obtain_args():
                 SUPPORTED_IMAGE_EXTENSIONS))
         return filename
 
+    def _existent_directory(dirname):
+        if not os.path.isdir(dirname):
+            raise argparse.ArgumentTypeError("'{}' is not a directory".format(dirname))
+        return dirname
+
     arg_parser = argparse.ArgumentParser(description="Stereogramaxo: An autostereogram generator, by Mexomagno")
     depthmap_arg_group = arg_parser.add_mutually_exclusive_group(required=True)
     depthmap_arg_group.add_argument("--depthmap", "-d", help="Path to a depthmap image file", type=_supported_image_file)
@@ -384,26 +408,43 @@ def obtain_args():
     viewmode_arg_group.add_argument("--wall", "-w", help="Wall eyed mode", action="store_true")
     viewmode_arg_group.add_argument("--cross", "-c", help="Cross eyed mode", action="store_true")
     arg_parser.add_argument("--blur", "-b", help="Gaussian blur ammount", type=_restricted_blur, default=2)
-
     arg_parser.add_argument("--forcedepth", help="Force max depth to use", type=_restricted_depth)
+    arg_parser.add_argument("--output", "-o", help="Directory where to store the results", type=_existent_directory)
     args = arg_parser.parse_args()
-    print(args)
+    # print(args)
     return args
 
 
+class _HTTPCode:
+    OK = 200
+    BAD_REQUEST = 400
+    INTERNAL_SERVER_ERROR = 500
+
+
+def return_http_response(code, text):
+    print {
+        "code": code,
+        "text": text
+    }
+
 def main():
     parsed_args = obtain_args()
-    print("Generating...")
     i = make_stereogram(parsed_args)
-    show_img(i)
-    return
-    print "Saving..."
-    output = save_to_file(i)
-    if output is None:
-        print "Error: Could not save to file"
+    if not parsed_args.output:
+        show_img(i)
+        return
+    # print "Saving..."
+    success, additional_info = save_to_file(i, parsed_args.output)
+    if not success:
+        return_http_response(_HTTPCode.INTERNAL_SERVER_ERROR, additional_info)
+    else:
+        return_http_response(_HTTPCode.OK, additional_info)
 
 if __name__ == "__main__":
     main()
+
+
+
 
 """
 Problems:
