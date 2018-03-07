@@ -63,15 +63,16 @@
 			</div>
 			<!-- Panels -->
 			<div class="cell large-10">
-				<!-- File selector -->
-				<div id="dm-file-input-panel">
-					<label for="depthmap-file" class="button">Upload depthmap file</label>
-					<input type="file" id="depthmap-file" name="depthmap_file" class="show-for-sr">
-				</div>
-				<!-- Text input -->
-				<div id="dm-text-panel" class="panel-hidden">
-					<label for="depthmap-text"></label>
-					<input type="text" id="depthmap-text" name="depthmap_text" value="K paza">
+					<!-- File selector -->
+					<div id="dm-file-input-panel">
+						<label for="depthmap-file" class="button expanded">Upload depthmap file</label>
+						<input type="file" id="depthmap-file" name="depthmap_file" class="show-for-sr">
+					</div>
+					<!-- Text input -->
+					<div id="dm-text-panel" class="panel-hidden">
+						<label for="depthmap-text"></label>
+						<input type="text" id="depthmap-text" name="depthmap_text" value="K paza">
+					</div>
 				</div>
 			</div>
 		</div>
@@ -97,7 +98,7 @@
 			<!-- Panels -->
 			<div class="cell large-10">
 				<div id="pattern-file-input-panel">
-					<label for="pattern-file" class="button">Upload pattern file</label>
+					<label for="pattern-file" class="button expanded">Upload pattern file</label>
 					<input type="file" id="pattern-file" name="pattern_file" class="show-for-sr">
 				</div>
 				<div id="pattern-dots-settings-panel" class="panel-hidden">
@@ -136,6 +137,34 @@
 			</div>
 		</div>
 		
+		<!-- Force depth selector -->
+		<div class="grid-x">
+			<!-- Switch -->
+			<div class="cell large-2">
+				<label for="force-depth-switch">Force Depth</label>
+				<div class="switch large">
+					<input class="switch-input" id="force-depth-switch" type="checkbox" name="force_depth">
+					<label class="switch-paddle" for="force-depth-switch">
+						<span class="show-for-sr">Enable Forced Depth</span>
+					</label>
+				</div>
+			</div>
+			<!-- slider -->
+			<div class="cell large-10">
+				<div class="grid-x">
+					<div class="cell large-10">
+						<div class="slider" data-slider data-initial-start="80" data-step="1" id="forced-depth-slider-container">
+							<span class="slider-handle" data-slider-handle role="slider" tabindex="1" aria-controls="forced-depth-slider"></span>
+						</div>
+					</div>
+					<div class="cell large-2">
+						<input type="number" id="forced-depth-slider" name="forced-depth" disabled>
+					</div>
+				</div>
+			</div>
+				
+			</div>
+		</div>
 
 		<!-- Submit -->
 		<div class="grid-x">
@@ -206,6 +235,21 @@
 		// Show this radio's panel
 		$("#" + associated_panel_id).css("display", "block");
 	}
+
+	$(document).ready(function(){
+		// Forced depth switch behavior
+		$("#force-depth-switch").change(function(){
+			if ($(this).is(":checked")){
+				// Enable slider
+				$("#forced-depth-slider-container").removeClass("disabled");
+				$("#forced-depth-slider").removeAttr("disabled");
+			} else {
+				$("#forced-depth-slider-container").addClass("disabled");
+				$("#forced-depth-slider").attr("disabled", "disabled");
+			}
+		});
+		$("#force-depth-switch").change();
+	});
 
 	</script>
 </body>
