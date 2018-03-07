@@ -6,7 +6,9 @@
 	<link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/foundation/6.4.3/css/foundation.min.css">
 
 	<style>
-
+	body{
+		margin: 30px auto;
+	}
 	#response{
 		color: #ff0000;
 	}
@@ -29,9 +31,15 @@
 
 	}
 
-	#submit {
+	#submit-container{
 		margin: 20px auto;
+	}
+	#submit {
 		font-size: 150%;
+	}
+
+	.justify-center{
+		text-align: center;
 	}
 
 	</style>
@@ -162,31 +170,38 @@
 					</div>
 				</div>
 			</div>
-				
-			</div>
 		</div>
+
+		<!-- View mode -->
+		<div class="grid-x justify-center">
+			<div class="cell large-5" id="wall-eyed-label">Wall-Eyed</div>
+			<div class="cell large-2">
+				<div class="switch large">
+					<input class="switch-input" id="view-mode-switch" type="checkbox" name="view_mode_we">
+					<label class="switch-paddle" for="view-mode-switch">
+						<span class="show-for-sr"></span>
+					</label>
+				</div>
+			</div>
+			<div class="cell large-5" id="cross-eyed-label">Cross-Eyed</div>
+		</div>
+
 
 		<!-- Submit -->
 		<div class="grid-x">
+			<div class="" id="submit-container">
 				<input id="submit" type="submit" class="button" value="GENERATE">
+				<video id="loading-icon" autoplay loop muted poster="loading.webm">
+					<source type="video/webm" src="https://giant.gfycat.com/AppropriateSpotlessAdouri.webm">
+				</video>
+			</div>
 		</div>
 	</form>
-		
 
 
-<!--
-
-
-
-	
 	<div id="response"></div>
 	<img id="generated-image">
-	<video id="loading-icon" autoplay loop muted poster="loading.webm">
-		<source type="video/webm" src="https://giant.gfycat.com/AppropriateSpotlessAdouri.webm">
-	</video>
 	
- -->
-
 
 	<script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/foundation/6.4.3/js/foundation.min.js"></script>
@@ -196,6 +211,7 @@
 
 	function run_stereogramaxo(){
 		// Show loading
+		$("#submit").css("display", "none");
 		$("#loading-icon").css("display", "block");
 		$.ajax({
 			url: "run.php",	
@@ -204,12 +220,14 @@
 			dataType: 'json'
 		}).done(function(data){
 			$("#loading-icon").css("display", "none");
+			$("#submit").css("display", "block");
 			var url = data.text;
 			$("#generated-image").attr({
 				"src": url
 			});
 		}).fail(function(data){
 			$("#loading-icon").css("display", "none");
+			$("#submit").css("display", "block");
 			console.log("Response: " + data);
 			$("#response").text("Error response: " + data.error);
 		});
@@ -221,7 +239,6 @@
 	It activates the associated panel id and hides every other element in ids_to_hide
 	**/
 	function radio_changed(radio_element, associated_panel_id, ids_to_hide){
-		console.log("radio element:" + radio_element + ", panel: " + associated_panel_id + ", ids to hide: " + ids_to_hide);
 		if (!$(radio_element).is(":checked"))
 			return;
 		var ids = ids_to_hide;
@@ -229,7 +246,6 @@
 			ids = Array(ids_to_hide);
 		// Hide elements
 		for (id of ids){
-			console.log("Will hide " + id);
 			$("#" + id).css("display", "none");
 		}
 		// Show this radio's panel
@@ -249,6 +265,20 @@
 			}
 		});
 		$("#force-depth-switch").change();
+
+		// View mode switch behavior
+		$("#view-mode-switch").change(function(){
+			if ($(this).is(":checked")){
+				// Cross eyed selected
+				$("#wall-eyed-label").removeClass("label secondary");
+				$("#cross-eyed-label").addClass("label primary");
+			} else {
+				// Wall eyed selected
+				$("#cross-eyed-label").removeClass("label primary");
+				$("#wall-eyed-label").addClass("label secondary");
+			}
+		});
+		$("#view-mode-switch").change();
 	});
 
 	</script>
