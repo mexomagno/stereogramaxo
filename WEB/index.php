@@ -9,8 +9,9 @@
 	body{
 		margin: 30px auto;
 	}
-	#response{
+	#debug-div{
 		color: #ff0000;
+		font-variant: monospace;
 	}
 
 	#loading-icon {
@@ -45,24 +46,27 @@
 	</style>
 </head>
 <body>
-	<div id="title">
-		<h1>Stereogramaxo</h1>
-		<h3>Control Panel</h3>
-	</div>
-	<form action="#"  onsubmit="return run_stereogramaxo();" id="the-form">
+	
+	<form action="#" id="the-form" method="post">
+		<div id="title" class="grid-x">
+			<h1 class="justify-center cell auto">Stereogramaxo</h2>
+		</div>
+		<div class="grid-x">
+			<h3 class="justify-center cell auto">Control Panel</h3>
+		</div>
 		<!-- Depthmap selector -->
 		<div class="grid-x">
 			<!-- switches -->
 			<div class="cell large-2">
 				<div class="switch large">
-				<input class="switch-input" id="dm-file-switch" type="radio" checked name="dm-switches" onchange="radio_changed(this, 'dm-file-input-panel', ['dm-text-panel']);">
+				<input class="switch-input" id="dm-file-switch" type="radio" checked value="file" name="dm_switches" onchange="radio_changed(this, 'dm-file-input-panel', ['dm-text-panel']);">
 				<label class="switch-paddle" for="dm-file-switch">
 					<span class="show-for-sr">Depthmap</span>
 					<span class="switch-active" aria-hidden="true">File</span>
 				</label>
 				</div>
 				<div class="switch large">
-				<input class="switch-input" id="dm-text-switch" type="radio" name="dm-switches" onchange="radio_changed(this, 'dm-text-panel', ['dm-file-input-panel']);">
+				<input class="switch-input" id="dm-text-switch" type="radio" value="text" name="dm_switches" onchange="radio_changed(this, 'dm-text-panel', ['dm-file-input-panel']);">
 				<label class="switch-paddle" for="dm-text-switch">
 					<span class="show-for-sr">Depthmap</span>
 					<span class="switch-active" aria-hidden="true">Text</span>
@@ -79,7 +83,8 @@
 					<!-- Text input -->
 					<div id="dm-text-panel" class="panel-hidden">
 						<label for="depthmap-text"></label>
-						<input type="text" id="depthmap-text" name="depthmap_text" value="K paza">
+						<input type="text" id="depthmap-text" name="depthmap_text" value="K paza" maxlength="30">
+						<div id="chars-left"></div>
 					</div>
 				</div>
 			</div>
@@ -89,14 +94,14 @@
 			<!-- switches -->
 			<div class="cell large-2">
 				<div class="switch large">
-					<input class="switch-input" id="pattern-file-switch" type="radio" checked name="pattern-switches" onchange="radio_changed(this, 'pattern-file-input-panel', ['pattern-dots-settings-panel']);">
+					<input class="switch-input" id="pattern-file-switch" type="radio" value="file" checked name="pattern_switches" onchange="radio_changed(this, 'pattern-file-input-panel', ['pattern-dots-settings-panel']);">
 					<label class="switch-paddle" for="pattern-file-switch">
 						<span class="show-for-sr">Patterns</span>
 						<span class="switch-active" aria-hidden="true">File</span>
 					</label>
 				</div>
 				<div class="switch large">
-					<input class="switch-input" id="pattern-dots-switch" type="radio" name="pattern-switches" onchange="radio_changed(this, 'pattern-dots-settings-panel', ['pattern-file-input-panel']);">
+					<input class="switch-input" id="pattern-dots-switch" type="radio" value="dots" name="pattern_switches" onchange="radio_changed(this, 'pattern-dots-settings-panel', ['pattern-file-input-panel']);">
 					<label class="switch-paddle" for="pattern-dots-switch">
 						<span class="show-for-sr">Patterns</span>
 						<span class="switch-active" aria-hidden="true">Dots</span>
@@ -144,7 +149,6 @@
 				</div>
 			</div>
 		</div>
-		
 		<!-- Force depth selector -->
 		<div class="grid-x">
 			<!-- Switch -->
@@ -171,7 +175,6 @@
 				</div>
 			</div>
 		</div>
-
 		<!-- View mode -->
 		<div class="grid-x justify-center">
 			<div class="cell large-5" id="wall-eyed-label">Wall-Eyed</div>
@@ -186,7 +189,6 @@
 			<div class="cell large-5" id="cross-eyed-label">Cross-Eyed</div>
 		</div>
 
-
 		<!-- Submit -->
 		<div class="grid-x">
 			<div class="" id="submit-container">
@@ -199,7 +201,7 @@
 	</form>
 
 
-	<div id="response"></div>
+	<pre><div id="debug-div"></div></pre>
 	<img id="generated-image">
 	
 
@@ -209,16 +211,21 @@
 
 	$(document).foundation();
 
-	function run_stereogramaxo(){
+	function submit_form(event){
+		event.preventDefault();
 		// Show loading
 		$("#submit").css("display", "none");
 		$("#loading-icon").css("display", "block");
 		$.ajax({
 			url: "run.php",	
 			type: "POST",
-			async: false,
-			dataType: 'json'
+			processData: false,
+			contentType: false,
+			async: true,
+			data: new FormData($("#the-form")[0])
+			//dataType: 'json'
 		}).done(function(data){
+			log(data);
 			$("#loading-icon").css("display", "none");
 			$("#submit").css("display", "block");
 			var url = data.text;
@@ -226,12 +233,16 @@
 				"src": url
 			});
 		}).fail(function(data){
+			log(data);
 			$("#loading-icon").css("display", "none");
 			$("#submit").css("display", "block");
-			console.log("Response: " + data);
-			$("#response").text("Error response: " + data.error);
 		});
 		return false;
+	}
+
+	function log(message){
+		console.log("response: " + message);
+		$("#debug-div").text(message);
 	}
 
 	/**
@@ -279,6 +290,32 @@
 			}
 		});
 		$("#view-mode-switch").change();
+
+		// Depthmap mode switch: Change depth depending on the mode
+		// TODO: Move slider too
+		$("#dm-file-switch").change(function(){
+			if ($(this).is(":checked")){
+				// Selected file depthmap
+				if (!$("#force-depth-switch").is(":checked"))
+					$("#forced-depth-slider").val(80);
+			}
+		});
+		$("#dm-text-switch").change(function(){
+			if ($(this).is(":checked")){
+				// Selected file depthmap
+				if (!$("#force-depth-switch").is(":checked"))
+					$("#forced-depth-slider").val(20);
+			}
+		});
+		$("#the-form").submit(function(event){
+			submit_form(event);
+		})
+
+		// Text ux
+		$("#depthmap-text").keyup(function(event){
+			$("#chars-left").text("" + ($(this).attr("maxlength") - $(this).val().length));
+		});
+		$("#depthmap-text").keyup();
 	});
 
 	</script>

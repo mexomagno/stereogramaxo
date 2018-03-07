@@ -1,4 +1,6 @@
 <?php 
+var_dump($_REQUEST);
+var_dump($_FILE);
 //$result = system("$cwd/py/ENV/bin/python $cwd/py/sirds.py");
 $sirds_path = "/home/mexomagno/Workspace_ext4/stereogramaxo";
 
@@ -22,6 +24,7 @@ switch($shell_retcode){
 		http_response_code(500);
 		$response_data = "Unknown error happened on the server"; 
 }
-header('Content-Type: application/json');
-echo json_encode($shell_retcode == 0 ? $response_data : array("error" => $response_data));
+
+// header('Content-Type: application/json');
+// echo json_encode($shell_retcode == 0 ? $response_data : array("error" => $response_data));
 ?>
