@@ -47,7 +47,7 @@
 </head>
 <body>
 	
-	<form action="#" id="the-form" method="post">
+	<form action="#" id="the-form" method="post" data-abide="ajax">
 		<div id="title" class="grid-x">
 			<h1 class="justify-center cell auto">Stereogramaxo</h2>
 		</div>
@@ -78,12 +78,15 @@
 					<!-- File selector -->
 					<div id="dm-file-input-panel">
 						<label for="depthmap-file" class="button expanded">Upload depthmap file</label>
-						<input type="file" id="depthmap-file" name="depthmap_file" class="show-for-sr">
+						<input type="file" id="depthmap-file" name="depthmap_file" class="show-for-sr file-selector" data-validator="valid_depthmap_file">
+						<span class="form-error">Select a file first</span>
+						<div id="depthmap-filename" class="justify-center" placeholder="Select a depthmap file"></div>
 					</div>
 					<!-- Text input -->
 					<div id="dm-text-panel" class="panel-hidden">
 						<label for="depthmap-text"></label>
-						<input type="text" id="depthmap-text" name="depthmap_text" value="K paza" maxlength="30">
+						<input type="text" id="depthmap-text" name="depthmap_text" value="K paza" maxlength="30" data-validator="valid_depthmap_text">
+						<span class="form-error">Enter some text first</span>
 						<div id="chars-left"></div>
 					</div>
 				</div>
@@ -112,7 +115,9 @@
 			<div class="cell large-10">
 				<div id="pattern-file-input-panel">
 					<label for="pattern-file" class="button expanded">Upload pattern file</label>
-					<input type="file" id="pattern-file" name="pattern_file" class="show-for-sr">
+					<input type="file" id="pattern-file" name="pattern_file" class="show-for-sr file-selector" data-validator="valid_pattern_file">
+					<span class="form-error">Select a file first</span>
+					<div id="pattern-filename" class="justify-center" placeholder="Select a pattern file"></div>
 				</div>
 				<div id="pattern-dots-settings-panel" class="panel-hidden">
 					<label for="dots-probability-slider">Probability of dot aparition</label>
@@ -209,39 +214,31 @@
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/foundation/6.4.3/js/foundation.min.js"></script>
 	<script>
 
-	$(document).foundation();
-
-	function submit_form(event){
-		event.preventDefault();
-		// Show loading
-		$("#submit").css("display", "none");
-		$("#loading-icon").css("display", "block");
-		$.ajax({
-			url: "run.php",	
-			type: "POST",
-			processData: false,
-			contentType: false,
-			async: true,
-			data: new FormData($("#the-form")[0])
-			//dataType: 'json'
-		}).done(function(data){
-			log(data);
-			$("#loading-icon").css("display", "none");
-			$("#submit").css("display", "block");
-			var url = data.text;
-			$("#generated-image").attr({
-				"src": url
-			});
-		}).fail(function(data){
-			log(data);
-			$("#loading-icon").css("display", "none");
-			$("#submit").css("display", "block");
-		});
-		return false;
+	Foundation.Abide.defaults.validators["valid_depthmap_file"] = 
+	function ($el, required, parent){
+		if ($("#dm-file-switch").is(":checked") && $el.val() == "")
+			return false;
+		return true;
+	};
+	Foundation.Abide.defaults.validators["valid_depthmap_text"] = 
+	function ($el, required, parent){
+		if ($("#dm-text-switch").is(":checked") && $el.val() == "")
+			return false;
+		return true;
+	}
+	Foundation.Abide.defaults.validators["valid_pattern_file"] = 
+	function ($el, required, parent){
+		if ($("#pattern-file-switch").is(":checked") && $el.val() == "")
+			return false;
+		return true;
 	}
 
+
+
+	$(document).foundation();
+
 	function log(message){
-		console.log("response: " + message);
+		// console.log("response: " + message);
 		$("#debug-div").text(message);
 	}
 
@@ -307,16 +304,74 @@
 					$("#forced-depth-slider").val(20);
 			}
 		});
-		$("#the-form").submit(function(event){
-			submit_form(event);
-		})
 
 		// Text ux
 		$("#depthmap-text").keyup(function(event){
 			$("#chars-left").text("" + ($(this).attr("maxlength") - $(this).val().length));
 		});
 		$("#depthmap-text").keyup();
+
+		// File selector filename displays
+		$(".file-selector").change(function(){
+			var div_element;
+			if ($(this).attr("id") == "depthmap-file"){
+				div_element = $("#depthmap-filename");
+			} else if ($(this).attr("id") == "pattern-file"){
+				div_element = $("#pattern-filename");
+			}
+			// Get selected file so far
+			file_basename = _path_basename($(this).val());
+			if (file_basename == ""){
+				div_element.text("-- " + $(div_element).attr("placeholder") + " --");
+			} else {
+				div_element.text("Selected: '" + file_basename + "'");
+			}
+		});
+		//$(".file-selector").change();
+		
+
+		// Form behaviour
+		$("#the-form").submit(function(event){
+			console.log("form submitted");
+			if ($(".is-invalid-input").length > 0){
+				console.log("found invalid inputs");
+				return false;
+			}
+			event.preventDefault();
+			return false;
+			// Show loading
+			$("#submit").css("display", "none");
+			$("#loading-icon").css("display", "block");
+			$.ajax({
+				url: "run.php",	
+				type: "POST",
+				processData: false,
+				contentType: false,
+				async: true,
+				data: new FormData($("#the-form")[0])
+				//dataType: 'json'
+			}).done(function(data){
+				log(data);
+				$("#loading-icon").css("display", "none");
+				$("#submit").css("display", "block");
+				var url = data.text;
+				$("#generated-image").attr({
+					"src": url
+				});
+			}).fail(function(data){
+				log(data);
+				$("#loading-icon").css("display", "none");
+				$("#submit").css("display", "block");
+			});
+			return false;
+		});
 	});
+
+	function _path_basename(complete_path){
+		return complete_path.split(/[\\/]/).pop();
+	}
+
+
 
 	</script>
 </body>
