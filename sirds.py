@@ -438,7 +438,7 @@ def main():
     if not success:
         return_http_response(_HTTPCode.INTERNAL_SERVER_ERROR, additional_info)
     else:
-        return_http_response(_HTTPCode.OK, additional_info)
+        return_http_response(_HTTPCode.OK, os.path.basename(additional_info))
 
 if __name__ == "__main__":
     main()

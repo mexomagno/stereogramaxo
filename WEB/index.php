@@ -175,7 +175,7 @@
 						</div>
 					</div>
 					<div class="cell large-2">
-						<input type="number" id="forced-depth-slider" name="forced-depth" disabled>
+						<input type="number" id="forced-depth-slider" name="forced_depth" disabled>
 					</div>
 				</div>
 			</div>
@@ -185,7 +185,8 @@
 			<div class="cell large-5" id="wall-eyed-label">Wall-Eyed</div>
 			<div class="cell large-2">
 				<div class="switch large">
-					<input class="switch-input" id="view-mode-switch" type="checkbox" name="view_mode_we">
+					<input class="switch-input" id="view-mode-switch" type="checkbox">
+					<input type="hidden" id="view-mode" name="view_mode">
 					<label class="switch-paddle" for="view-mode-switch">
 						<span class="show-for-sr"></span>
 					</label>
@@ -198,7 +199,7 @@
 		<div class="grid-x">
 			<div class="" id="submit-container">
 				<input id="submit" type="submit" class="button" value="GENERATE">
-				<video id="loading-icon" autoplay loop muted poster="loading.webm">
+				<video id="loading-icon" autoplay loop muted>
 					<source type="video/webm" src="https://giant.gfycat.com/AppropriateSpotlessAdouri.webm">
 				</video>
 			</div>
@@ -238,7 +239,7 @@
 	$(document).foundation();
 
 	function log(message){
-		// console.log("response: " + message);
+		console.log("response: " + message);
 		$("#debug-div").text(message);
 	}
 
@@ -329,16 +330,18 @@
 		});
 		//$(".file-selector").change();
 		
+		$("#view-mode-switch").change(function(){
+			$("#view-mode").val(($(this).is(":checked") ? "c" : "w"));
+		});
+		$("#view-mode-switch").change();
+
 
 		// Form behaviour
 		$("#the-form").submit(function(event){
-			console.log("form submitted");
 			if ($(".is-invalid-input").length > 0){
-				console.log("found invalid inputs");
 				return false;
 			}
 			event.preventDefault();
-			return false;
 			// Show loading
 			$("#submit").css("display", "none");
 			$("#loading-icon").css("display", "block");
@@ -348,10 +351,10 @@
 				processData: false,
 				contentType: false,
 				async: true,
-				data: new FormData($("#the-form")[0])
-				//dataType: 'json'
+				data: new FormData($("#the-form")[0]),
+				dataType: 'json'
 			}).done(function(data){
-				log(data);
+				// log("OK response: " + data);
 				$("#loading-icon").css("display", "none");
 				$("#submit").css("display", "block");
 				var url = data.text;
@@ -359,7 +362,7 @@
 					"src": url
 				});
 			}).fail(function(data){
-				log(data);
+				log("FAIL response: " + data);
 				$("#loading-icon").css("display", "none");
 				$("#submit").css("display", "block");
 			});
