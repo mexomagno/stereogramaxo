@@ -166,7 +166,7 @@
 			<div class="cell large-2">
 				<label for="force-depth-switch">Force Depth</label>
 				<div class="switch large">
-					<input class="switch-input" id="force-depth-switch" type="checkbox">
+					<input class="switch-input" id="force-depth-switch" type="checkbox" name="force_depth">
 					<label class="switch-paddle" for="force-depth-switch">
 						<span class="show-for-sr">Enable Forced Depth</span>
 					</label>
@@ -307,7 +307,6 @@
 				// Selected file depthmap
 				if (!$("#force-depth-switch").is(":checked")){
 					$("#forced-depth-slider").val(80);
-					$("#forced-depth").val(20);
 				}
 			}
 		});
@@ -316,7 +315,6 @@
 				// Selected file depthmap
 				if (!$("#force-depth-switch").is(":checked")){
 					$("#forced-depth-slider").val(20);
-					$("#forced-depth").val(20);
 				}
 			}
 		});
@@ -350,16 +348,12 @@
 		});
 		$("#view-mode-switch").change();
 
-		$("#forced-depth-slider").change(function(){
-			$("#forced-depth").val($(this).val());
-		});
-		$("#forced-depth-slider").change();		
-
 		// Form behaviour
 		$("#the-form").submit(function(event){
 			if ($(".is-invalid-input").length > 0){
 				return false;
 			}
+			$("#forced-depth").val($("#forced-depth-slider").val());
 			event.preventDefault();
 			// Show loading
 			$("#submit").css("display", "none");

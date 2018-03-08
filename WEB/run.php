@@ -95,13 +95,15 @@ if (isset($_POST["view_mode"])){
 $script_args = $script_args." ".$view_mode;
 
 // Force depth
-if (isset($_POST["forced_depth"]) && ctype_digit($_POST["forced_depth"])){
-	$fd = intval($_POST["forced_depth"]);
-	if ($fd < 0 || $fd > 100){
-		send_response($HTTP_BAD_REQUEST, "Invalid depth value");
+if (isset($_POST["force_depth"])){
+	if (isset($_POST["forced_depth"]) && ctype_digit($_POST["forced_depth"])){
+		$fd = intval($_POST["forced_depth"]);
+		if ($fd < 0 || $fd > 100){
+			send_response($HTTP_BAD_REQUEST, "Invalid depth value");
+		}
+		$fd = $fd/100.0;
+		$script_args = $script_args." --forcedepth ".$fd;
 	}
-	$fd = $fd/100.0;
-	$script_args = $script_args." --forcedepth ".$fd;
 }
 
 // Execute script
