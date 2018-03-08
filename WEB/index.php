@@ -4,7 +4,7 @@
 	<meta charset="UTF-8">
 	<title>Testing</title>
 	<link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/foundation/6.4.3/css/foundation.min.css">
-
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/motion-ui/1.1.1/motion-ui.min.css" />
 	<style>
 	body{
 		margin: 30px auto;
@@ -41,6 +41,12 @@
 
 	.justify-center{
 		text-align: center;
+	}
+	#generated-image{
+		width: auto;
+		height: auto;
+		max-width: 90%;
+		max-height: 90%;
 	}
 
 	</style>
@@ -160,7 +166,7 @@
 			<div class="cell large-2">
 				<label for="force-depth-switch">Force Depth</label>
 				<div class="switch large">
-					<input class="switch-input" id="force-depth-switch" type="checkbox" name="force_depth">
+					<input class="switch-input" id="force-depth-switch" type="checkbox">
 					<label class="switch-paddle" for="force-depth-switch">
 						<span class="show-for-sr">Enable Forced Depth</span>
 					</label>
@@ -175,7 +181,8 @@
 						</div>
 					</div>
 					<div class="cell large-2">
-						<input type="number" id="forced-depth-slider" name="forced_depth" disabled>
+						<input type="number" id="forced-depth-slider" disabled>
+						<input type="hidden" name="forced_depth" id="forced-depth">
 					</div>
 				</div>
 			</div>
@@ -206,10 +213,14 @@
 		</div>
 	</form>
 
-
 	<pre><div id="debug-div"></div></pre>
-	<img id="generated-image">
-	
+
+	<div class="full reveal justify-center" id="generated-image-modal" data-reveal data-close-on-click="true" data-animation-in="fade-in slow" data-animation-out="fade-out slow">
+		<img id="generated-image">
+		<button class="close-button" data-close aria-label="Close reveal" type="button">
+			<span aria-hidden="true">&times;</span>
+		</button>
+	</div>
 
 	<script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/foundation/6.4.3/js/foundation.min.js"></script>
@@ -240,7 +251,7 @@
 
 	function log(message){
 		console.log("response: " + message);
-		$("#debug-div").text(message);
+		// $("#debug-div").text(message);
 	}
 
 	/**
@@ -294,15 +305,19 @@
 		$("#dm-file-switch").change(function(){
 			if ($(this).is(":checked")){
 				// Selected file depthmap
-				if (!$("#force-depth-switch").is(":checked"))
+				if (!$("#force-depth-switch").is(":checked")){
 					$("#forced-depth-slider").val(80);
+					$("#forced-depth").val(20);
+				}
 			}
 		});
 		$("#dm-text-switch").change(function(){
 			if ($(this).is(":checked")){
 				// Selected file depthmap
-				if (!$("#force-depth-switch").is(":checked"))
+				if (!$("#force-depth-switch").is(":checked")){
 					$("#forced-depth-slider").val(20);
+					$("#forced-depth").val(20);
+				}
 			}
 		});
 
@@ -335,6 +350,10 @@
 		});
 		$("#view-mode-switch").change();
 
+		$("#forced-depth-slider").change(function(){
+			$("#forced-depth").val($(this).val());
+		});
+		$("#forced-depth-slider").change();		
 
 		// Form behaviour
 		$("#the-form").submit(function(event){
@@ -354,13 +373,14 @@
 				data: new FormData($("#the-form")[0]),
 				dataType: 'json'
 			}).done(function(data){
-				// log("OK response: " + data);
+				log("OK response: " + data);
 				$("#loading-icon").css("display", "none");
 				$("#submit").css("display", "block");
 				var url = data.text;
 				$("#generated-image").attr({
 					"src": url
 				});
+				$("#generated-image-modal").foundation("open");
 			}).fail(function(data){
 				log("FAIL response: " + data);
 				$("#loading-icon").css("display", "none");

@@ -8,7 +8,7 @@ $HTTP_SERVER_ERROR = 500;
 **/
 function send_response($HTTP_CODE, $response){
 	header("Content-Type: application/json");
-	// header("This-wea: is/fake");
+	// http_response_code($HTTP_CODE);
 	echo json_encode($HTTP_CODE == 200 ? $response : "{'error': '".$response."'}");
 	exit;
 }
@@ -44,8 +44,14 @@ if ($dm_mode == "file" && (!isset($_FILES) || !isset($_FILES["depthmap_file"])))
 // Validated depthmap. Convert to args
 if ($dm_mode == "text")
 	$script_args = $script_args." -t \"".$_POST["depthmap_text"]."\"";
-if ($dm_mode == "file")
-	$script_args = $script_args." -d \"".$_FILES["depthmap_file"]["tmp_name"]."\"";
+if ($dm_mode == "file"){
+	// TODO: Validate image properties
+	$dm_path = "/tmp/".basename($_FILES["depthmap_file"]["name"]);
+	// send_response(400, "path to upload dm: ".$dm_path);
+	if (!move_uploaded_file($_FILES["depthmap_file"]["tmp_name"], $dm_path))
+		send_response($HTTP_SERVER_ERROR, "Could not upload depthmap image");
+	$script_args = $script_args." -d \"".$dm_path."\"";
+}
 
 $pattern_mode = $_POST["pattern_switches"];
 if ($pattern_mode != "dots" && $pattern_mode != "file")
@@ -53,8 +59,14 @@ if ($pattern_mode != "dots" && $pattern_mode != "file")
 if ($pattern_mode == "file" && (!isset($_FILES) || !isset($_FILES["pattern_file"])))
 	$send_response($HTTP_BAD_REQUEST, "You must attach an image for an image pattern");
 // Validated pattern. Convert to args
-if ($pattern_mode == "file")
-	$script_args = $script_args." -p \"".$_FILES["pattern_file"]["tmp_name"]."\"";
+if ($pattern_mode == "file"){
+	// TODO: Validate image properties
+	$p_file = "/tmp/".basename($_FILES["pattern_file"]["name"]);
+	// send_response(400, "path to upload dm: ".$p_file);
+	if (!move_uploaded_file($_FILES["pattern_file"]["tmp_name"], $p_file))
+		send_response($HTTP_SERVER_ERROR, "Could not upload pattern image");
+	$script_args = $script_args." -p \"".$p_file."\"";
+}
 if ($pattern_mode == "dots")
 	$script_args = $script_args." --dots";
 
@@ -115,7 +127,7 @@ switch($shell_retcode){
 		// Get generated file name
 		$json_response = json_decode($script_response);
 		$json_response->text = $OUTPUT_DIR."/".$json_response->text;
-		send_response($HTTP_OK, $json_response);
+		send_response($json_response->code, $json_response);
 	case 126:
 		send_response($HTTP_SERVER_ERROR, "Server has permission issues! Fix first");
 	default:
