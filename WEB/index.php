@@ -156,12 +156,12 @@
 					<label for="dots-probability-slider">Probability of dot aparition</label>
 					<div class="grid-x">
 						<div class="cell large-10">
-							<div class="slider" data-slider data-initial-start=40 data-step="1">
+							<div class="slider" data-slider data-initial-start="40" data-step="1">
 								<span class="slider-handle" data-slider-handle role="slider" tabindex="1" aria-controls="dot-probability-slider"></span>
 							</div>
 						</div>
 						<div class="cell large-2">
-							<input type="number" id="dot-probability-slider" name="dot_probability">
+							<input type="number" id="dot-probability-slider" name="dot_probability" min="10" max="50">
 						</div>
 					</div>
 				</div>
@@ -239,14 +239,14 @@
 		<!-- Submit -->
 		<div class="grid-x">
 			<!-- <div class="cell large-2"></div> -->
-			<div class="cell large-12">
+			<!-- <div class="cell large-12"> -->
 				<div class="justify-center" id="submit-container">
 					<input id="submit" type="submit" class="button" value="GENERATE">
 					<video id="loading-icon" autoplay loop muted>
 						<source type="video/webm" src="https://giant.gfycat.com/AppropriateSpotlessAdouri.webm">
 					</video>
 				</div>
-			</div>
+			<!-- </div> -->
 		</div>
 	</form>
 

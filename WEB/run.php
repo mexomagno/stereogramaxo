@@ -71,7 +71,13 @@ if ($pattern_mode == "dots")
 	$script_args = $script_args." --dots";
 
 // TODO: Implement dot pattern options
-//if (isset($_POST["dot_probability"]) && is_int($_POST["dot_probability"]) && 0 <= $_POST["dot_probability"] && $_POST["dot_probability"] <= 100){
+if (isset($_POST["dot_probability"]) && is_numeric($_POST["dot_probability"])){
+	$float_dp = floatval($_POST["dot_probability"]);
+	if ($float_dp < 0 || $float_dp > 100){
+		send_response($HTTP_BAD_REQUEST, "Invalid dot probability value");
+	}
+	$script_args = $script_args." --dot-prob ".($float_dp/100.0);
+}
 //	$dp = $_POST["dot_probability"];
 //}
 

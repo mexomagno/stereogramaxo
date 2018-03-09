@@ -47,15 +47,13 @@ PATTERN_FRACTION = 8.0
 OVERSAMPLE = 1.8
 SHIFT_RATIO = 0.3
 LEFT_TO_RIGHT = False  # Defines how the pixels will be shifted (left to right or center to sides)
-DOT_DRAW_PROBABILITY = 0.4  # Decides how often a random dot is drawn
-SMOOTH_FACTOR = 1.8
 DOT_OVER_PATTERN_PROBABILITY = 0.3  # Defines how often dots are chosen over pattern on random pattern selection
 
 def show_img(i):
     i.show(command="eog")
 
 
-def make_background(size, filename=""):
+def make_background(size, filename="", dots_prob=None):
     """
     Constructs background pattern
 
@@ -65,6 +63,8 @@ def make_background(size, filename=""):
         Size of the depthmap
     filename : str
         Name of the pattern image, if any. Empty if dot pattern
+    dots_prob : float
+        Probability of dots appearing. Only makes sense if filename is not set (or equals to 'dots')
     Returns
     -------
 
@@ -96,7 +96,7 @@ def make_background(size, filename=""):
     if filename == "" or filename == "dots":
         for f in range(i.size[1]):
             for c in range(pattern_width):
-                if random() < DOT_DRAW_PROBABILITY:  # choice([True,False,False,False]):
+                if random() < dots_prob:  # choice([True,False,False,False]):
                     i_pix[c, f] = choice([(255, 0, 0), (255, 255, 0), (200, 0, 255)])
 
     return i, is_image
@@ -209,7 +209,7 @@ def make_stereogram(parsed_args):
         dm = redistribute_grays(dm, parsed_args.forcedepth)
 
     # Create base pattern
-    bg_image_object, pattern_is_img = make_background(dm.size, "" if parsed_args.dots else parsed_args.pattern)
+    bg_image_object, pattern_is_img = make_background(dm.size, "" if parsed_args.dots else parsed_args.pattern, parsed_args.dot_prob)
 
     # Oversample on image-pattern based background (NOT dots, bad results!)
     if pattern_is_img:
@@ -366,7 +366,7 @@ def obtain_args():
     """
     Retrieves arguments and parses them to a dict.
     """
-    def _restricted_depth(x):
+    def _restricted_unit(x):
         x = float(x)
         min = 0.0
         max = 1.0
@@ -407,10 +407,13 @@ def obtain_args():
     viewmode_arg_group = arg_parser.add_mutually_exclusive_group(required=True)
     viewmode_arg_group.add_argument("--wall", "-w", help="Wall eyed mode", action="store_true")
     viewmode_arg_group.add_argument("--cross", "-c", help="Cross eyed mode", action="store_true")
+    arg_parser.add_argument("--dot-prob", help="Probability of dot apparition", type=_restricted_unit, default=0.4)
     arg_parser.add_argument("--blur", "-b", help="Gaussian blur ammount", type=_restricted_blur, default=2)
-    arg_parser.add_argument("--forcedepth", help="Force max depth to use", type=_restricted_depth)
+    arg_parser.add_argument("--forcedepth", help="Force max depth to use", type=_restricted_unit)
     arg_parser.add_argument("--output", "-o", help="Directory where to store the results", type=_existent_directory)
     args = arg_parser.parse_args()
+    if args.dot_prob and not args.dots:
+        arg_parser.error("--dot-prob only makes sense when --dots is set")
     # print(args)
     return args
 
