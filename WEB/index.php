@@ -7,7 +7,10 @@
 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/motion-ui/1.1.1/motion-ui.min.css" />
 	<style>
 	body{
-		margin: 30px auto;
+		margin: 0px auto;
+		background-color: #eee;
+		/*transform: scale(0.9);
+   		transform-origin: 0 0;*/
 	}
 	#debug-div{
 		color: #ff0000;
@@ -19,13 +22,15 @@
 		width: 100px;
 		height: 100px;
 		border-radius: 50px;
+		margin-left: auto;
+		margin-right: auto;
 	}
 	.panel-hidden {
 		display: none;
 	}
 
 	#the-form {
-		max-width: 50%;
+		max-width: 70%;
 		margin: 20px auto;
 	}
 	#title {
@@ -48,11 +53,30 @@
 		max-width: 90%;
 		max-height: 90%;
 	}
-
+	.primary{
+		font-size: 110%;
+	}
+		
+	#switch-paddle-label{
+		margin-left: auto;
+		margin-right: auto;
+	}
+	.callout{
+		margin: -1px;
+	}
+	.has-tip{
+		border-bottom: none;
+		cursor: pointer;
+	}
 	</style>
 </head>
 <body>
-	
+	<div class="full reveal justify-center" id="generated-image-modal" data-reveal data-close-on-click="true" data-animation-in="fade-in slow" data-animation-out="fade-out slow" data-v-offset="0">
+		<img id="generated-image">
+		<button class="close-button" data-close aria-label="Close reveal" type="button">
+			<span aria-hidden="true">&times;</span>
+		</button>
+	</div>
 	<form action="#" id="the-form" method="post" data-abide="ajax">
 		<div id="title" class="grid-x">
 			<h1 class="justify-center cell auto">Stereogramaxo</h2>
@@ -60,18 +84,20 @@
 		<div class="grid-x">
 			<h3 class="justify-center cell auto">Control Panel</h3>
 		</div>
+		<br><br>
 		<!-- Depthmap selector -->
-		<div class="grid-x">
+		<div class="grid-x justify-center callout small">
 			<!-- switches -->
 			<div class="cell large-2">
-				<div class="switch large">
+				<div class="has-tip left" data-tooltip title="Grayscale image used to create the 3D illusion. Upload an image or input some text.">Depthmap</div>
+				<div class="switch">
 				<input class="switch-input" id="dm-file-switch" type="radio" checked value="file" name="dm_switches" onchange="radio_changed(this, 'dm-file-input-panel', ['dm-text-panel']);">
 				<label class="switch-paddle" for="dm-file-switch">
 					<span class="show-for-sr">Depthmap</span>
 					<span class="switch-active" aria-hidden="true">File</span>
 				</label>
 				</div>
-				<div class="switch large">
+				<div class="switch">
 				<input class="switch-input" id="dm-text-switch" type="radio" value="text" name="dm_switches" onchange="radio_changed(this, 'dm-text-panel', ['dm-file-input-panel']);">
 				<label class="switch-paddle" for="dm-text-switch">
 					<span class="show-for-sr">Depthmap</span>
@@ -99,17 +125,18 @@
 			</div>
 		</div>
 		<!-- Pattern selector -->
-		<div class="grid-x">
+		<div class="grid-x justify-center callout small">
 			<!-- switches -->
 			<div class="cell large-2">
-				<div class="switch large">
+				<div class="has-tip left" data-tooltip title="What to put as a background. Provide an image or select a random dot pattern">Background Pattern</div>
+				<div class="switch">
 					<input class="switch-input" id="pattern-file-switch" type="radio" value="file" checked name="pattern_switches" onchange="radio_changed(this, 'pattern-file-input-panel', ['pattern-dots-settings-panel']);">
 					<label class="switch-paddle" for="pattern-file-switch">
 						<span class="show-for-sr">Patterns</span>
 						<span class="switch-active" aria-hidden="true">File</span>
 					</label>
 				</div>
-				<div class="switch large">
+				<div class="switch">
 					<input class="switch-input" id="pattern-dots-switch" type="radio" value="dots" name="pattern_switches" onchange="radio_changed(this, 'pattern-dots-settings-panel', ['pattern-file-input-panel']);">
 					<label class="switch-paddle" for="pattern-dots-switch">
 						<span class="show-for-sr">Patterns</span>
@@ -141,10 +168,10 @@
 			</div>
 		</div>
 		<!-- Blur selector -->
-		<div class="grid-x">
+		<div class="grid-x justify-center callout small">
 			<!-- label -->
 			<div class="cell large-2">
-				<label for="blur-slider">Gaussian Blur</label>
+				<div class="has-tip left" data-tooltip title="Applies a Gausian Blur filter over the original depthmap. Play with it and see!">Gaussian Blur</div>
 			</div>
 			<!-- slider -->
 			<div class="cell large-10">
@@ -161,10 +188,10 @@
 			</div>
 		</div>
 		<!-- Force depth selector -->
-		<div class="grid-x">
+		<div class="grid-x justify-center callout small">
 			<!-- Switch -->
 			<div class="cell large-2">
-				<label for="force-depth-switch">Force Depth</label>
+				<div class="has-tip left" data-tooltip title="Force a distance between the farthest and nearest points (Useful in case that your depthmap is too flat)">Force Depth</div>
 				<div class="switch large">
 					<input class="switch-input" id="force-depth-switch" type="checkbox" name="force_depth">
 					<label class="switch-paddle" for="force-depth-switch">
@@ -188,39 +215,42 @@
 			</div>
 		</div>
 		<!-- View mode -->
-		<div class="grid-x justify-center">
-			<div class="cell large-5" id="wall-eyed-label">Wall-Eyed</div>
+		<div class="grid-x justify-center callout small">
 			<div class="cell large-2">
-				<div class="switch large">
-					<input class="switch-input" id="view-mode-switch" type="checkbox">
-					<input type="hidden" id="view-mode" name="view_mode">
-					<label class="switch-paddle" for="view-mode-switch">
-						<span class="show-for-sr"></span>
-					</label>
+				<div class="has-tip left" data-tooltip title="Most common is Wall-eyed. If you feel you're seeing an inverted stereogram, try the other view mode">View Mode</div>
+			</div>
+			<div class="cell large-10">
+				<div class="grid-x">
+					<div class="cell large-5 callout" id="wall-eyed-label">Wall-Eyed</div>
+					<div class="cell large-2 clearfix">
+						<div class="switch large float-center">
+							<input class="switch-input" id="view-mode-switch" type="checkbox">
+							<input type="hidden" id="view-mode" name="view_mode">
+							<label class="switch-paddle" for="view-mode-switch" id="switch-paddle-label">
+								<span class="show-for-sr"></span>
+							</label>
+						</div>
+					</div>
+					<div class="cell large-5 callout" id="cross-eyed-label">Cross-Eyed</div>
 				</div>
 			</div>
-			<div class="cell large-5" id="cross-eyed-label">Cross-Eyed</div>
 		</div>
 
 		<!-- Submit -->
 		<div class="grid-x">
-			<div class="" id="submit-container">
-				<input id="submit" type="submit" class="button" value="GENERATE">
-				<video id="loading-icon" autoplay loop muted>
-					<source type="video/webm" src="https://giant.gfycat.com/AppropriateSpotlessAdouri.webm">
-				</video>
+			<!-- <div class="cell large-2"></div> -->
+			<div class="cell large-12">
+				<div class="justify-center" id="submit-container">
+					<input id="submit" type="submit" class="button" value="GENERATE">
+					<video id="loading-icon" autoplay loop muted>
+						<source type="video/webm" src="https://giant.gfycat.com/AppropriateSpotlessAdouri.webm">
+					</video>
+				</div>
 			</div>
 		</div>
 	</form>
 
 	<pre><div id="debug-div"></div></pre>
-
-	<div class="full reveal justify-center" id="generated-image-modal" data-reveal data-close-on-click="true" data-animation-in="fade-in slow" data-animation-out="fade-out slow">
-		<img id="generated-image">
-		<button class="close-button" data-close aria-label="Close reveal" type="button">
-			<span aria-hidden="true">&times;</span>
-		</button>
-	</div>
 
 	<script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/foundation/6.4.3/js/foundation.min.js"></script>
@@ -290,13 +320,18 @@
 		$("#view-mode-switch").change(function(){
 			if ($(this).is(":checked")){
 				// Cross eyed selected
-				$("#wall-eyed-label").removeClass("label secondary");
-				$("#cross-eyed-label").addClass("label primary");
+				// $("#wall-eyed-label").removeClass("label primary");
+				// $("#cross-eyed-label").addClass("label primary");
+				$("#wall-eyed-label").removeClass("primary");
+				$("#cross-eyed-label").addClass("primary");
 			} else {
 				// Wall eyed selected
-				$("#cross-eyed-label").removeClass("label primary");
-				$("#wall-eyed-label").addClass("label secondary");
+				// $("#cross-eyed-label").removeClass("label primary");
+				// $("#wall-eyed-label").addClass("label primary");
+				$("#cross-eyed-label").removeClass("primary");
+				$("#wall-eyed-label").addClass("primary");
 			}
+			$("#view-mode").val(($(this).is(":checked") ? "c" : "w"));
 		});
 		$("#view-mode-switch").change();
 
@@ -341,12 +376,6 @@
 				div_element.text("Selected: '" + file_basename + "'");
 			}
 		});
-		//$(".file-selector").change();
-		
-		$("#view-mode-switch").change(function(){
-			$("#view-mode").val(($(this).is(":checked") ? "c" : "w"));
-		});
-		$("#view-mode-switch").change();
 
 		// Form behaviour
 		$("#the-form").submit(function(event){
