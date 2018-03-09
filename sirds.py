@@ -2,6 +2,7 @@
 # coding: utf-8
 import os
 import sys
+import re
 import json
 import time
 import argparse
@@ -53,7 +54,14 @@ def show_img(i):
     i.show(command="eog")
 
 
-def make_background(size, filename="", dots_prob=None):
+def _hex_color_to_tuple(s):
+    if not re.search(r'^#?(?:[0-9a-fA-F]{3}){1,2}$', s):
+        return (0, 0, 0)
+    if len(s) == 3:
+        s = "".join(["{}{}".format(c, c) for c in s])
+    return tuple(ord(c) for c in s.decode('hex'))
+
+def make_background(size, filename="", dots_prob=None, bg_color="000"):
     """
     Constructs background pattern
 
@@ -65,13 +73,14 @@ def make_background(size, filename="", dots_prob=None):
         Name of the pattern image, if any. Empty if dot pattern
     dots_prob : float
         Probability of dots appearing. Only makes sense if filename is not set (or equals to 'dots')
+    bg_color : str
+        hex code for color
     Returns
     -------
-
     """
     pattern_width = (int)(size[0] / PATTERN_FRACTION)
     # Pattern is a little bit longer than original picture, so everything fits on 3D (eye crossing shrinks the picture horizontally!)
-    i = im.new("RGB", (size[0] + pattern_width, size[1]), color="black")
+    i = im.new("RGB", (size[0] + pattern_width, size[1]), color=_hex_color_to_tuple(bg_color))
     i_pix = i.load()
     if filename == "R" and random() < DOT_OVER_PATTERN_PROBABILITY:
         filename = "dots"
@@ -209,7 +218,10 @@ def make_stereogram(parsed_args):
         dm = redistribute_grays(dm, parsed_args.forcedepth)
 
     # Create base pattern
-    bg_image_object, pattern_is_img = make_background(dm.size, "" if parsed_args.dots else parsed_args.pattern, parsed_args.dot_prob)
+    bg_image_object, pattern_is_img = make_background(dm.size,
+                                                      "" if parsed_args.dots else parsed_args.pattern,
+                                                      parsed_args.dot_prob,
+                                                      parsed_args.dot_bg_color)
 
     # Oversample on image-pattern based background (NOT dots, bad results!)
     if pattern_is_img:
@@ -396,6 +408,11 @@ def obtain_args():
             raise argparse.ArgumentTypeError("'{}' is not a directory".format(dirname))
         return dirname
 
+    def _valid_color_string(s):
+        if not re.search(r'^#?(?:[0-9a-fA-F]{3}){1,2}$', s):
+            raise argparse.ArgumentTypeError("'{}' is not a valid hex color".format(s))
+        return s
+
     arg_parser = argparse.ArgumentParser(description="Stereogramaxo: An autostereogram generator, by Mexomagno")
     depthmap_arg_group = arg_parser.add_mutually_exclusive_group(required=True)
     depthmap_arg_group.add_argument("--depthmap", "-d", help="Path to a depthmap image file", type=_supported_image_file)
@@ -408,12 +425,15 @@ def obtain_args():
     viewmode_arg_group.add_argument("--wall", "-w", help="Wall eyed mode", action="store_true")
     viewmode_arg_group.add_argument("--cross", "-c", help="Cross eyed mode", action="store_true")
     arg_parser.add_argument("--dot-prob", help="Probability of dot apparition", type=_restricted_unit, default=0.4)
+    arg_parser.add_argument("--dot-bg-color", help="Base background color for dot pattern", type=_valid_color_string, default="000000")
     arg_parser.add_argument("--blur", "-b", help="Gaussian blur ammount", type=_restricted_blur, default=2)
     arg_parser.add_argument("--forcedepth", help="Force max depth to use", type=_restricted_unit)
     arg_parser.add_argument("--output", "-o", help="Directory where to store the results", type=_existent_directory)
     args = arg_parser.parse_args()
     if args.dot_prob and not args.dots:
         arg_parser.error("--dot-prob only makes sense when --dots is set")
+    if args.dot_bg_color and not args.dots:
+        arg_parser.error("--dot-bg-color only makes sense when --dots is set")
     # print(args)
     return args
 

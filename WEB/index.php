@@ -4,7 +4,8 @@
 	<meta charset="UTF-8">
 	<title>Testing</title>
 	<link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/foundation/6.4.3/css/foundation.min.css">
-	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/motion-ui/1.1.1/motion-ui.min.css" />
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/motion-ui/1.1.1/motion-ui.min.css">
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-colorpicker/2.5.1/css/bootstrap-colorpicker.min.css">
 	<style>
 	body{
 		margin: 0px auto;
@@ -67,6 +68,9 @@
 	.has-tip{
 		border-bottom: none;
 		cursor: pointer;
+	}
+	.form-error{
+		font-size: 120%;
 	}
 	</style>
 </head>
@@ -153,15 +157,36 @@
 					<div id="pattern-filename" class="justify-center" placeholder="Select a pattern file"></div>
 				</div>
 				<div id="pattern-dots-settings-panel" class="panel-hidden">
-					<label for="dots-probability-slider">Probability of dot aparition</label>
 					<div class="grid-x">
-						<div class="cell large-10">
-							<div class="slider" data-slider data-initial-start="40" data-step="1">
-								<span class="slider-handle" data-slider-handle role="slider" tabindex="1" aria-controls="dot-probability-slider"></span>
+						<!-- dot probability -->
+						<!-- <div class="cell large-12"> -->
+							<div class="cell large-6">
+								<div>Probability of dot apparition</div>
 							</div>
-						</div>
-						<div class="cell large-2">
-							<input type="number" id="dot-probability-slider" name="dot_probability" min="10" max="50">
+							<div class="cell large-6">
+								<div class="grid-x">
+									<div class="cell large-10">
+										<div class="slider" data-slider data-initial-start="40" data-step="1">
+											<span class="slider-handle" data-slider-handle role="slider" tabindex="1" aria-controls="dot-probability-slider"></span>
+										</div>
+									</div>
+									<div class="cell large-2">
+										<input type="number" id="dot-probability-slider" name="dot_probability" min="10" max="50">
+									</div>
+								</div>
+							</div>
+						<!-- </div> -->
+						<!-- background color -->
+						<div class="cell large-12">
+							<div class="grid-x">
+								<div class="cell large-6">
+									<div>Background color</div>
+								</div>
+								<div class="cell large-6">
+									<input type="text" class="jscolor" id="bg-color-picker" value="000000" name="dot_bg_color">
+									<!-- <span class="form-error">Invalid color</span> -->
+								</div>
+							</div>
 						</div>
 					</div>
 				</div>
@@ -254,7 +279,9 @@
 
 	<script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/foundation/6.4.3/js/foundation.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/jscolor/2.0.4/jscolor.min.js"></script>
 	<script>
+
 
 	Foundation.Abide.defaults.validators["valid_depthmap_file"] = 
 	function ($el, required, parent){
@@ -274,8 +301,6 @@
 			return false;
 		return true;
 	}
-
-
 
 	$(document).foundation();
 

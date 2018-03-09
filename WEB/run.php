@@ -70,7 +70,7 @@ if ($pattern_mode == "file"){
 if ($pattern_mode == "dots")
 	$script_args = $script_args." --dots";
 
-// TODO: Implement dot pattern options
+// Dot aparition options
 if (isset($_POST["dot_probability"]) && is_numeric($_POST["dot_probability"])){
 	$float_dp = floatval($_POST["dot_probability"]);
 	if ($float_dp < 0 || $float_dp > 100){
@@ -78,8 +78,16 @@ if (isset($_POST["dot_probability"]) && is_numeric($_POST["dot_probability"])){
 	}
 	$script_args = $script_args." --dot-prob ".($float_dp/100.0);
 }
-//	$dp = $_POST["dot_probability"];
-//}
+if (isset($_POST["dot_bg_color"])){
+	$bg_c = $_POST["dot_bg_color"];
+	preg_match("/^([a-fA-F0-9]{3}$|^[a-fA-F0-9]{6})$/", $bg_c, $validity);
+	// if (!preg_match('/^([a-fA-F0-9]{3}$|^[a-fA-F0-9]{6})$/', $$bg_c)){
+	if (count($validity) == 0){
+		send_response($HTTP_BAD_REQUEST, "Invalid background color: '".$bg_c."'");
+	}
+	$script_args = $script_args." --dot-bg-color ".$bg_c;
+}
+
 
 // Blur
 if (isset($_POST["blur"]) && ctype_digit($_POST["blur"])){
