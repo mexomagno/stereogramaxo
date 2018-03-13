@@ -185,6 +185,100 @@ def redistribute_grays(img_object, gray_height):
     return img_object
 
 
+def make_stereogram2(parsed_args):
+    # Load or create stereogram depthmap
+    if parsed_args.text:
+        dm_img = make_depth_text(parsed_args.text, DEFAULT_DEPTHTEXT_FONT)
+    else:
+        dm_img = load_file(parsed_args.depthmap, "L")
+    # Apply gaussian blur if needed
+    if parsed_args.blur and parsed_args.blur != 0:
+        dm_img = dm_img.filter(imflt.GaussianBlur(parsed_args.blur))
+
+    # Redistribute grayscale range (force depth)
+    if parsed_args.text:
+        dm_img = redistribute_grays(dm_img, parsed_args.forcedepth if parsed_args.forcedepth is not None else 0.5)
+    elif parsed_args.forcedepth:
+        dm_img = redistribute_grays(dm_img, parsed_args.forcedepth)
+
+    # Create blank canvas
+    pattern_width = (int)(dm_img.size[0]/PATTERN_FRACTION)
+    print parsed_args
+    canvas_img = im.new(mode="RGB",
+                        size=(pattern_width*(int(PATTERN_FRACTION) + 1), dm_img.size[1]),
+                        color=(0, 0, 0) if parsed_args.dot_bg_color is None
+                        else _hex_color_to_tuple(parsed_args.dot_bg_color))
+    # Create pattern
+    pattern_strip_img = im.new(mode="RGB",
+                               size=(pattern_width, dm_img.size[1]),
+                               color=(0, 0, 0) if parsed_args.dot_bg_color is None
+                               else _hex_color_to_tuple(parsed_args.dot_bg_color))
+    if parsed_args.pattern:
+        # Create from file
+        pattern_raw_img = load_file(parsed_args.pattern)
+        p_w = pattern_raw_img.size[0]
+        p_h = pattern_raw_img.size[1]
+        # Resize to strip width
+        pattern_raw_img = pattern_raw_img.resize((pattern_width, (int)((pattern_width * 1.0 / p_w) * p_h)), im.LANCZOS)
+        # Repeat vertically
+        region = pattern_raw_img.crop((0, 0, pattern_raw_img.size[0], pattern_raw_img.size[1]))
+        y = 0
+        while y < pattern_strip_img.size[1]:
+            pattern_strip_img.paste(region, (0, y, pattern_raw_img.size[0], y + pattern_raw_img.size[1]))
+            y += pattern_raw_img.size[1]
+
+        # Oversample. Smoother results.
+        dm_img = dm_img.resize(((int)(dm_img.size[0] * OVERSAMPLE), (int)(dm_img.size[1] * OVERSAMPLE)))
+        canvas_img = canvas_img.resize(((int)(canvas_img.size[0] * OVERSAMPLE), (int)(canvas_img.size[1] * OVERSAMPLE)))
+        pattern_strip_img = pattern_strip_img.resize(((int)(pattern_strip_img.size[0] * OVERSAMPLE), (int)(pattern_strip_img.size[1] * OVERSAMPLE)))
+        pattern_width = pattern_strip_img.size[0]
+
+    else:
+        # create random dot pattern
+        pixels = pattern_strip_img.load()
+        dot_prob = parsed_args.dot_prob if parsed_args.dot_prob else 0.4
+        for y in range(pattern_strip_img.size[1]):
+            for x in range(pattern_width):
+                if random() < dot_prob:
+                    pixels[x, y] = choice([(255, 0, 0), (255, 255, 0), (200, 0, 255)])
+
+    # Important objects here: dm_img, pattern_strip_img, canvas_img
+    # Start stereogram generation
+    def shift_pixels(dm_start_x, depthmap_image_object, canvas_image_object, direction):
+        """ shifts pixel of image. direction==1 right, -1 left """
+        depth_factor = pattern_width * SHIFT_RATIO
+        cv_pixels = canvas_image_object.load()
+        while 0 <= dm_start_x < dm_img.size[0]:
+            for dm_y in range(depthmap_image_object.size[1]):
+                for dm_x in range(dm_start_x, max(0,dm_start_x + direction*pattern_width), direction):
+                    dm_pix = dm_img.getpixel((dm_x, dm_y))
+                    px_shift = int(dm_pix/255.0*depth_factor*(1 if parsed_args.wall else -1))*direction
+                    if direction == 1:
+                        #if px_shift < 0:
+                            #px_shift += pattern_width
+                        cv_pixels[dm_x + pattern_width, dm_y] = canvas_img.getpixel((px_shift + dm_x, dm_y))
+                    if direction == -1:
+                        # print "dm_x: {}, px_shift: {}".format(dm_x, px_shift)
+                        cv_pixels[dm_x, dm_y] = canvas_img.getpixel((dm_x + pattern_width + px_shift, dm_y))
+
+            dm_start_x += direction*pattern_strip_img.size[0]
+
+
+    # paste first pattern
+    dm_start_x = dm_img.size[0]/2
+    canvas_img.paste(pattern_strip_img, (dm_start_x, 0, dm_start_x + pattern_width, canvas_img.size[1]))
+    if not parsed_args.wall:
+        canvas_img.paste(pattern_strip_img, (dm_start_x - pattern_width, 0, dm_start_x, canvas_img.size[1]))
+    shift_pixels(dm_start_x, dm_img, canvas_img, 1)
+    shift_pixels(dm_start_x + pattern_width, dm_img, canvas_img, -1)
+
+
+    # Bring back from oversample
+    if parsed_args.pattern:
+        canvas_img = canvas_img.resize(((int)(canvas_img.size[0] / OVERSAMPLE), (int)(canvas_img.size[1] / OVERSAMPLE)),
+                                       im.LANCZOS)  # NEAREST, BILINEAR, BICUBIC, LANCZOS
+    return canvas_img
+
 def make_stereogram(parsed_args):
     """
     Actually generates the stereogram.
@@ -424,8 +518,8 @@ def obtain_args():
     viewmode_arg_group = arg_parser.add_mutually_exclusive_group(required=True)
     viewmode_arg_group.add_argument("--wall", "-w", help="Wall eyed mode", action="store_true")
     viewmode_arg_group.add_argument("--cross", "-c", help="Cross eyed mode", action="store_true")
-    arg_parser.add_argument("--dot-prob", help="Probability of dot apparition", type=_restricted_unit, default=0.4)
-    arg_parser.add_argument("--dot-bg-color", help="Base background color for dot pattern", type=_valid_color_string, default="000000")
+    arg_parser.add_argument("--dot-prob", help="Probability of dot apparition", type=_restricted_unit)
+    arg_parser.add_argument("--dot-bg-color", help="Base background color for dot pattern", type=_valid_color_string)
     arg_parser.add_argument("--blur", "-b", help="Gaussian blur ammount", type=_restricted_blur, default=2)
     arg_parser.add_argument("--forcedepth", help="Force max depth to use", type=_restricted_unit)
     arg_parser.add_argument("--output", "-o", help="Directory where to store the results", type=_existent_directory)
@@ -452,7 +546,7 @@ def return_http_response(code, text):
 
 def main():
     parsed_args = obtain_args()
-    i = make_stereogram(parsed_args)
+    i = make_stereogram2(parsed_args)
     if not parsed_args.output:
         show_img(i)
         return
