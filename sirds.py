@@ -61,7 +61,7 @@ def _hex_color_to_tuple(s):
         s = "".join(["{}{}".format(c, c) for c in s])
     return tuple(ord(c) for c in s.decode('hex'))
 
-def make_background(size, filename="", dots_prob=None, bg_color="000"):
+def make_background(size, filename="", dots_prob=None, bg_color="000", dot_colors_string=None):
     """
     Constructs background pattern
 
@@ -78,6 +78,7 @@ def make_background(size, filename="", dots_prob=None, bg_color="000"):
     Returns
     -------
     """
+    print "colors string: {}".format(dot_colors_string)
     pattern_width = (int)(size[0] / PATTERN_FRACTION)
     # Pattern is a little bit longer than original picture, so everything fits on 3D (eye crossing shrinks the picture horizontally!)
     i = im.new("RGB", (size[0] + pattern_width, size[1]), color=_hex_color_to_tuple(bg_color))
@@ -105,8 +106,12 @@ def make_background(size, filename="", dots_prob=None, bg_color="000"):
     if filename == "" or filename == "dots":
         for f in range(i.size[1]):
             for c in range(pattern_width):
-                if random() < dots_prob:  # choice([True,False,False,False]):
-                    i_pix[c, f] = choice([(255, 0, 0), (255, 255, 0), (200, 0, 255)])
+                if random() < dots_prob:
+                    if dot_colors_string is None:
+                        i_pix[c, f] = choice([(255, 0, 0), (255, 255, 0), (200, 0, 255)])
+                    else:
+                        colors = [_hex_color_to_tuple(s) for s in dot_colors_string.split(",")]
+                        i_pix[c, f] = choice(colors)
 
     return i, is_image
 
@@ -203,7 +208,6 @@ def make_stereogram2(parsed_args):
 
     # Create blank canvas
     pattern_width = (int)(dm_img.size[0]/PATTERN_FRACTION)
-    print parsed_args
     canvas_img = im.new(mode="RGB",
                         size=(pattern_width*(int(PATTERN_FRACTION) + 1), dm_img.size[1]),
                         color=(0, 0, 0) if parsed_args.dot_bg_color is None
@@ -237,10 +241,14 @@ def make_stereogram2(parsed_args):
         # create random dot pattern
         pixels = pattern_strip_img.load()
         dot_prob = parsed_args.dot_prob if parsed_args.dot_prob else 0.4
+        color_tuples = [_hex_color_to_tuple(s) for s in parsed_args.dot_colors.split(",")]
         for y in range(pattern_strip_img.size[1]):
             for x in range(pattern_width):
                 if random() < dot_prob:
-                    pixels[x, y] = choice([(255, 0, 0), (255, 255, 0), (200, 0, 255)])
+                    if parsed_args.dot_colors:
+                        pixels[x, y] = choice(color_tuples)
+                    else:
+                        pixels[x, y] = choice([(255, 0, 0), (255, 255, 0), (200, 0, 255)])
 
     # Important objects here: dm_img, pattern_strip_img, canvas_img
     # Start stereogram generation
@@ -312,10 +320,11 @@ def make_stereogram(parsed_args):
         dm = redistribute_grays(dm, parsed_args.forcedepth)
 
     # Create base pattern
-    bg_image_object, pattern_is_img = make_background(dm.size,
-                                                      "" if parsed_args.dots else parsed_args.pattern,
-                                                      parsed_args.dot_prob,
-                                                      parsed_args.dot_bg_color)
+    bg_image_object, pattern_is_img = make_background(size=dm.size,
+                                                      filename="" if parsed_args.dots else parsed_args.pattern,
+                                                      dots_prob=parsed_args.dot_prob,
+                                                      bg_color=parsed_args.dot_bg_color,
+                                                      dot_colors_string=parsed_args.dot_colors)
 
     # Oversample on image-pattern based background (NOT dots, bad results!)
     if pattern_is_img:
@@ -507,6 +516,12 @@ def obtain_args():
             raise argparse.ArgumentTypeError("'{}' is not a valid hex color".format(s))
         return s
 
+    def _valid_colors_list(s):
+        colors = s.strip().split(",")
+        validated_colors = [_valid_color_string(color_string) for color_string in colors]
+        return s
+
+
     arg_parser = argparse.ArgumentParser(description="Stereogramaxo: An autostereogram generator, by Mexomagno")
     depthmap_arg_group = arg_parser.add_mutually_exclusive_group(required=True)
     depthmap_arg_group.add_argument("--depthmap", "-d", help="Path to a depthmap image file", type=_supported_image_file)
@@ -518,8 +533,10 @@ def obtain_args():
     viewmode_arg_group = arg_parser.add_mutually_exclusive_group(required=True)
     viewmode_arg_group.add_argument("--wall", "-w", help="Wall eyed mode", action="store_true")
     viewmode_arg_group.add_argument("--cross", "-c", help="Cross eyed mode", action="store_true")
-    arg_parser.add_argument("--dot-prob", help="Probability of dot apparition", type=_restricted_unit)
-    arg_parser.add_argument("--dot-bg-color", help="Base background color for dot pattern", type=_valid_color_string)
+    dotprops_arg_group = arg_parser.add_argument_group()
+    dotprops_arg_group.add_argument("--dot-prob", help="Dot apparition probability", type=_restricted_unit)
+    dotprops_arg_group.add_argument("--dot-bg-color", help="Background color", type=_valid_color_string)
+    dotprops_arg_group.add_argument("--dot-colors", help="Colors of dots", type=_valid_colors_list)
     arg_parser.add_argument("--blur", "-b", help="Gaussian blur ammount", type=_restricted_blur, default=2)
     arg_parser.add_argument("--forcedepth", help="Force max depth to use", type=_restricted_unit)
     arg_parser.add_argument("--output", "-o", help="Directory where to store the results", type=_existent_directory)
@@ -528,7 +545,8 @@ def obtain_args():
         arg_parser.error("--dot-prob only makes sense when --dots is set")
     if args.dot_bg_color and not args.dots:
         arg_parser.error("--dot-bg-color only makes sense when --dots is set")
-    # print(args)
+    if args.dot_colors and not args.dots:
+        arg_parser.error("--dot-colors only makes sense when --dots is set")
     return args
 
 
