@@ -244,30 +244,30 @@ def make_stereogram2(parsed_args):
 
     # Important objects here: dm_img, pattern_strip_img, canvas_img
     # Start stereogram generation
-    depth_factor = pattern_width * SHIFT_RATIO
-    #cv_pixels = canvas_img.load()
-    for direction in [-1, 1]:
-        dm_start_position = dm_img.size[0]/2
-        last_strip_img = pattern_strip_img
-        while 0 < dm_start_position < dm_img.size[0]:
-            new_strip_img = im.new(mode="RGB",
-                                   size=pattern_strip_img.size,
-                                   color="black")
-            new_strip_pixels = new_strip_img.load()
-            for dm_y in range(dm_img.size[1]):
-                for dm_x in range(dm_start_position, dm_start_position + direction*pattern_width, direction):
-                    # Calculate shift ammount from grayscale value
+    def shift_pixels(dm_start_x, depthmap_image_object, canvas_image_object, direction):
+        """ shifts pixel of image. direction==1 right, -1 left """
+        depth_factor = pattern_width * SHIFT_RATIO
+        cv_pixels = canvas_image_object.load()
+        while 0 <= dm_start_x < dm_img.size[0]:
+            for dm_y in range(depthmap_image_object.size[1]):
+                for dm_x in range(dm_start_x, max(0,dm_start_x + direction*pattern_width), direction):
                     dm_pix = dm_img.getpixel((dm_x, dm_y))
-                    px_shift = (dm_pix if parsed_args.wall else (255 - dm_pix)) / 255.0 * depth_factor * direction
-                    new_strip_pixels[dm_x % pattern_width, dm_y] = last_strip_img.getpixel(((dm_x+px_shift)%pattern_width, dm_y))
-                    #cv_pixels[dm_x + pattern_strip_img.size[0]/2, dm_y] = pattern_strip_img.getpixel(((dm_x+px_shift)%pattern_strip_img.size[0], dm_y))
-            # Flush strip to canvas
-            canvas_img.paste(new_strip_img, (dm_start_position - pattern_width*(1 if direction is -1 else 0) + pattern_width/2,
-                                             0,
-                                             dm_start_position + pattern_strip_img.size[0] - pattern_width*(1 if direction is -1 else 0) + pattern_width/2,
-                                             canvas_img.size[1]))
-            last_strip_img = new_strip_img
-            dm_start_position += direction*pattern_strip_img.size[0]
+                    px_shift = int(dm_pix/255.0*depth_factor*(1 if parsed_args.wall else -1))*direction
+                    if direction == 1:
+                        cv_pixels[dm_x + pattern_width, dm_y] = canvas_img.getpixel((dm_x + px_shift, dm_y))
+                    if direction == -1:
+                        # print "dm_x: {}, px_shift: {}".format(dm_x, px_shift)
+                        cv_pixels[dm_x, dm_y] = canvas_img.getpixel((dm_x + pattern_width + px_shift, dm_y))
+
+            dm_start_x += direction*pattern_strip_img.size[0]
+
+
+    # paste first pattern
+    dm_start_x = dm_img.size[0]/2
+    canvas_img.paste(pattern_strip_img, (dm_start_x, 0, dm_start_x + pattern_width, canvas_img.size[1]))
+    shift_pixels(dm_start_x, dm_img, canvas_img, 1)
+    shift_pixels(dm_start_x + pattern_width, dm_img, canvas_img, -1)
+
 
     # Bring back from oversample
     if parsed_args.pattern:
