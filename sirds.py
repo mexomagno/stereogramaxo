@@ -254,7 +254,9 @@ def make_stereogram2(parsed_args):
                     dm_pix = dm_img.getpixel((dm_x, dm_y))
                     px_shift = int(dm_pix/255.0*depth_factor*(1 if parsed_args.wall else -1))*direction
                     if direction == 1:
-                        cv_pixels[dm_x + pattern_width, dm_y] = canvas_img.getpixel((dm_x + px_shift, dm_y))
+                        #if px_shift < 0:
+                            #px_shift += pattern_width
+                        cv_pixels[dm_x + pattern_width, dm_y] = canvas_img.getpixel((px_shift + dm_x, dm_y))
                     if direction == -1:
                         # print "dm_x: {}, px_shift: {}".format(dm_x, px_shift)
                         cv_pixels[dm_x, dm_y] = canvas_img.getpixel((dm_x + pattern_width + px_shift, dm_y))
@@ -265,6 +267,8 @@ def make_stereogram2(parsed_args):
     # paste first pattern
     dm_start_x = dm_img.size[0]/2
     canvas_img.paste(pattern_strip_img, (dm_start_x, 0, dm_start_x + pattern_width, canvas_img.size[1]))
+    if not parsed_args.wall:
+        canvas_img.paste(pattern_strip_img, (dm_start_x - pattern_width, 0, dm_start_x, canvas_img.size[1]))
     shift_pixels(dm_start_x, dm_img, canvas_img, 1)
     shift_pixels(dm_start_x + pattern_width, dm_img, canvas_img, -1)
 
@@ -273,7 +277,7 @@ def make_stereogram2(parsed_args):
     if parsed_args.pattern:
         canvas_img = canvas_img.resize(((int)(canvas_img.size[0] / OVERSAMPLE), (int)(canvas_img.size[1] / OVERSAMPLE)),
                                        im.LANCZOS)  # NEAREST, BILINEAR, BICUBIC, LANCZOS
-    canvas_img.show()
+    return canvas_img
 
 def make_stereogram(parsed_args):
     """
