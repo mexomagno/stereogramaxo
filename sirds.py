@@ -241,14 +241,14 @@ def make_stereogram2(parsed_args):
         # create random dot pattern
         pixels = pattern_strip_img.load()
         dot_prob = parsed_args.dot_prob if parsed_args.dot_prob else 0.4
-        color_tuples = [_hex_color_to_tuple(s) for s in parsed_args.dot_colors.split(",")]
+        if parsed_args.dot_colors:
+            color_tuples = [_hex_color_to_tuple(s) for s in parsed_args.dot_colors.split(",")]
+        else:
+            color_tuples = [(255, 0, 0), (255, 255, 0), (200, 0, 255)]
         for y in range(pattern_strip_img.size[1]):
             for x in range(pattern_width):
                 if random() < dot_prob:
-                    if parsed_args.dot_colors:
-                        pixels[x, y] = choice(color_tuples)
-                    else:
-                        pixels[x, y] = choice([(255, 0, 0), (255, 255, 0), (200, 0, 255)])
+                    pixels[x, y] = choice(color_tuples)
 
     # Important objects here: dm_img, pattern_strip_img, canvas_img
     # Start stereogram generation
