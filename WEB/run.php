@@ -12,6 +12,8 @@ function send_response($HTTP_CODE, $response){
 	echo json_encode($HTTP_CODE == 200 ? $response : "{'error': '".$response."'}");
 	exit;
 }
+//var_dump($_POST["dot_colors"]);
+//exit;
 
 /* Vars to receive:
 
@@ -78,6 +80,7 @@ if (isset($_POST["dot_probability"]) && is_numeric($_POST["dot_probability"])){
 	}
 	$script_args = $script_args." --dot-prob ".($float_dp/100.0);
 }
+// Dot bg color
 if (isset($_POST["dot_bg_color"])){
 	$bg_c = $_POST["dot_bg_color"];
 	preg_match("/^([a-fA-F0-9]{3}$|^[a-fA-F0-9]{6})$/", $bg_c, $validity);
@@ -86,6 +89,18 @@ if (isset($_POST["dot_bg_color"])){
 		send_response($HTTP_BAD_REQUEST, "Invalid background color: '".$bg_c."'");
 	}
 	$script_args = $script_args." --dot-bg-color ".$bg_c;
+}
+
+// Dot colors
+if (isset($_POST["dot_colors"])){
+	$dot_cs = $_POST["dot_colors"];
+	$prefix = "";
+	$all_colors = "";
+	foreach ($dot_cs as $color_string){
+		$all_colors .= $prefix.$color_string;
+		$prefix = ",";
+	}
+	$script_args = $script_args." --dot-colors ".$all_colors;
 }
 
 
@@ -147,6 +162,6 @@ switch($shell_retcode){
 	case 126:
 		send_response($HTTP_SERVER_ERROR, "Server has permission issues! Fix first");
 	default:
-		send_response($HTTP_SERVER_ERROR, "Unknown error happened on the server"); 
+		send_response($HTTP_SERVER_ERROR, "Server error: '".$shell_retcode."'"); 
 }
 ?>
