@@ -69,38 +69,38 @@ if ($pattern_mode == "file"){
 		send_response($HTTP_SERVER_ERROR, "Could not upload pattern image");
 	$script_args = $script_args." -p \"".$p_file."\"";
 }
-if ($pattern_mode == "dots")
+if ($pattern_mode == "dots"){
 	$script_args = $script_args." --dots";
+	// Dot bg color
+	if (isset($_POST["dot_bg_color"])){
+		$bg_c = $_POST["dot_bg_color"];
+		preg_match("/^([a-fA-F0-9]{3}$|^[a-fA-F0-9]{6})$/", $bg_c, $validity);
+		// if (!preg_match('/^([a-fA-F0-9]{3}$|^[a-fA-F0-9]{6})$/', $$bg_c)){
+		if (count($validity) == 0){
+			send_response($HTTP_BAD_REQUEST, "Invalid background color: '".$bg_c."'");
+		}
+		$script_args = $script_args." --dot-bg-color ".$bg_c;
+	}
 
-// Dot aparition options
-if (isset($_POST["dot_probability"]) && is_numeric($_POST["dot_probability"])){
-	$float_dp = floatval($_POST["dot_probability"]);
-	if ($float_dp < 0 || $float_dp > 100){
-		send_response($HTTP_BAD_REQUEST, "Invalid dot probability value");
+	// Dot colors
+	if (isset($_POST["dot_colors"])){
+		$dot_cs = $_POST["dot_colors"];
+		$prefix = "";
+		$all_colors = "";
+		foreach ($dot_cs as $color_string){
+			$all_colors .= $prefix.$color_string;
+			$prefix = ",";
+		}
+		$script_args = $script_args." --dot-colors ".$all_colors;
 	}
-	$script_args = $script_args." --dot-prob ".($float_dp/100.0);
-}
-// Dot bg color
-if (isset($_POST["dot_bg_color"])){
-	$bg_c = $_POST["dot_bg_color"];
-	preg_match("/^([a-fA-F0-9]{3}$|^[a-fA-F0-9]{6})$/", $bg_c, $validity);
-	// if (!preg_match('/^([a-fA-F0-9]{3}$|^[a-fA-F0-9]{6})$/', $$bg_c)){
-	if (count($validity) == 0){
-		send_response($HTTP_BAD_REQUEST, "Invalid background color: '".$bg_c."'");
+	// Dot aparition options
+	if (isset($_POST["dot_probability"]) && is_numeric($_POST["dot_probability"])){
+		$float_dp = floatval($_POST["dot_probability"]);
+		if ($float_dp < 0 || $float_dp > 100){
+			send_response($HTTP_BAD_REQUEST, "Invalid dot probability value");
+		}
+		$script_args = $script_args." --dot-prob ".($float_dp/100.0);
 	}
-	$script_args = $script_args." --dot-bg-color ".$bg_c;
-}
-
-// Dot colors
-if (isset($_POST["dot_colors"])){
-	$dot_cs = $_POST["dot_colors"];
-	$prefix = "";
-	$all_colors = "";
-	foreach ($dot_cs as $color_string){
-		$all_colors .= $prefix.$color_string;
-		$prefix = ",";
-	}
-	$script_args = $script_args." --dot-colors ".$all_colors;
 }
 
 
