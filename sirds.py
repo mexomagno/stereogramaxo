@@ -50,6 +50,16 @@ SHIFT_RATIO = 0.3
 LEFT_TO_RIGHT = False  # Defines how the pixels will be shifted (left to right or center to sides)
 DOT_OVER_PATTERN_PROBABILITY = 0.3  # Defines how often dots are chosen over pattern on random pattern selection
 
+LOGFILE = "last.log"
+
+
+def log(message):
+    try:
+        with open(LOGFILE, "w") as logfile:
+            logfile.write("[{ts}]: {message}\n".format(ts=time.time(),
+                                                     message=message))
+    except IOError as e:
+        print "Exception: {}".format(e)
 
 def show_img(i):
     i.show(command="eog")
@@ -265,11 +275,8 @@ def make_stereogram2(parsed_args):
                     dm_pix = dm_img.getpixel((dm_x, dm_y))
                     px_shift = int(dm_pix/255.0*depth_factor*(1 if parsed_args.wall else -1))*direction
                     if direction == 1:
-                        #if px_shift < 0:
-                            #px_shift += pattern_width
                         cv_pixels[dm_x + pattern_width, dm_y] = canvas_img.getpixel((px_shift + dm_x, dm_y))
                     if direction == -1:
-                        # print "dm_x: {}, px_shift: {}".format(dm_x, px_shift)
                         cv_pixels[dm_x, dm_y] = canvas_img.getpixel((dm_x + pattern_width + px_shift, dm_y))
 
             dm_start_x += direction*pattern_strip_img.size[0]
@@ -568,13 +575,16 @@ def return_http_response(code, text):
 
 
 def main():
+    log("\n\n--- Started creation ---")
     parsed_args = obtain_args()
     i = make_stereogram2(parsed_args)
     if not parsed_args.output:
         show_img(i)
+        log("No output file specified")
         return
     # print "Saving..."
     success, additional_info = save_to_file(i, parsed_args.output)
+    log("Finished. Success: {}, Additional info: {}".format(success, additional_info))
     if not success:
         return_http_response(_HTTPCode.INTERNAL_SERVER_ERROR, additional_info)
     else:
