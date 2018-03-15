@@ -50,6 +50,7 @@ SHIFT_RATIO = 0.3
 LEFT_TO_RIGHT = False  # Defines how the pixels will be shifted (left to right or center to sides)
 DOT_OVER_PATTERN_PROBABILITY = 0.3  # Defines how often dots are chosen over pattern on random pattern selection
 
+
 def show_img(i):
     i.show(command="eog")
 
@@ -60,6 +61,7 @@ def _hex_color_to_tuple(s):
     if len(s) == 3:
         s = "".join(["{}{}".format(c, c) for c in s])
     return tuple(ord(c) for c in s.decode('hex'))
+
 
 def make_background(size, filename="", dots_prob=None, bg_color="000", dot_colors_string=None):
     """
@@ -209,7 +211,7 @@ def make_stereogram2(parsed_args):
     # Create blank canvas
     pattern_width = (int)(dm_img.size[0]/PATTERN_FRACTION)
     canvas_img = im.new(mode="RGB",
-                        size=(pattern_width*(int(PATTERN_FRACTION) + 1), dm_img.size[1]),
+                        size=(dm_img.size[0] + pattern_width, dm_img.size[1]),
                         color=(0, 0, 0) if parsed_args.dot_bg_color is None
                         else _hex_color_to_tuple(parsed_args.dot_bg_color))
     # Create pattern
@@ -258,7 +260,8 @@ def make_stereogram2(parsed_args):
         cv_pixels = canvas_image_object.load()
         while 0 <= dm_start_x < dm_img.size[0]:
             for dm_y in range(depthmap_image_object.size[1]):
-                for dm_x in range(dm_start_x, max(0,dm_start_x + direction*pattern_width), direction):
+                constrained_end = max(0, min(dm_img.size[0]-1, dm_start_x + direction * pattern_width))
+                for dm_x in range(dm_start_x, constrained_end, direction):
                     dm_pix = dm_img.getpixel((dm_x, dm_y))
                     px_shift = int(dm_pix/255.0*depth_factor*(1 if parsed_args.wall else -1))*direction
                     if direction == 1:
@@ -273,12 +276,12 @@ def make_stereogram2(parsed_args):
 
 
     # paste first pattern
-    dm_start_x = dm_img.size[0]/2
-    canvas_img.paste(pattern_strip_img, (dm_start_x, 0, dm_start_x + pattern_width, canvas_img.size[1]))
+    dm_center_x = dm_img.size[0]/2
+    canvas_img.paste(pattern_strip_img, (dm_center_x, 0, dm_center_x + pattern_width, canvas_img.size[1]))
     if not parsed_args.wall:
-        canvas_img.paste(pattern_strip_img, (dm_start_x - pattern_width, 0, dm_start_x, canvas_img.size[1]))
-    shift_pixels(dm_start_x, dm_img, canvas_img, 1)
-    shift_pixels(dm_start_x + pattern_width, dm_img, canvas_img, -1)
+        canvas_img.paste(pattern_strip_img, (dm_center_x - pattern_width, 0, dm_center_x, canvas_img.size[1]))
+    shift_pixels(dm_center_x, dm_img, canvas_img, 1)
+    shift_pixels(dm_center_x + pattern_width, dm_img, canvas_img, -1)
 
 
     # Bring back from oversample
@@ -286,6 +289,7 @@ def make_stereogram2(parsed_args):
         canvas_img = canvas_img.resize(((int)(canvas_img.size[0] / OVERSAMPLE), (int)(canvas_img.size[1] / OVERSAMPLE)),
                                        im.LANCZOS)  # NEAREST, BILINEAR, BICUBIC, LANCZOS
     return canvas_img
+
 
 def make_stereogram(parsed_args):
     """
@@ -561,6 +565,7 @@ def return_http_response(code, text):
         "code": code,
         "text": text
     })
+
 
 def main():
     parsed_args = obtain_args()
