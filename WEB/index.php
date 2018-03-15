@@ -6,6 +6,7 @@
 	<link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/foundation/6.4.3/css/foundation.min.css">
 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/motion-ui/1.1.1/motion-ui.min.css">
 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-colorpicker/2.5.1/css/bootstrap-colorpicker.min.css">
+	<link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.6-rc.0/css/select2.min.css" rel="stylesheet" />
 	<style>
 	body{
 		margin: 0px auto;
@@ -72,6 +73,13 @@
 	.form-error{
 		font-size: 120%;
 	}
+	.select2-results .dropdown-wrapper{
+		display: none !important;
+	}
+	 #select2-dot-colors-selector-results {
+	 	display: none;
+	 }
+	
 	</style>
 </head>
 <body>
@@ -188,6 +196,23 @@
 								</div>
 							</div>
 						</div>
+						<!-- Dot colors -->
+						<div class="cell large-12">
+							<div class="grid-x">
+								<div class="cell large-4">
+									<div>Dot colors</div>
+								</div>
+								<div class="cell large-2">
+									<input type="text" class="jscolor" id="dot-color-picker" value="000">
+									<div class="button" onclick="add_dot_color2()">Add</div>
+								</div>
+								<div class="cell large-6">
+									<select id="dot-colors-selector" name="dot_colors[]" multiple="multiple" style="width: 100%">
+										<option value="000">Black</option>
+									</select>
+								</div>
+							</div>
+						</div>
 					</div>
 				</div>
 			</div>
@@ -280,6 +305,7 @@
 	<script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/foundation/6.4.3/js/foundation.min.js"></script>
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/jscolor/2.0.4/jscolor.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.6-rc.0/js/select2.min.js"></script>
 	<script>
 
 
@@ -327,7 +353,55 @@
 		$("#" + associated_panel_id).css("display", "block");
 	}
 
+	// function add_dot_color(){
+	// 	var dot_color_picker = $("#dot-color-picker");
+	// 	var dot_colors_selector = $("#dot-colors-selector");
+	// 	var selected_color = dot_color_picker.val();
+	// 	var n_options = $("#dot-colors-selector option:selected").length;
+	// 	console.log("Adding new color. Current selected colors: " + n_options + ", color to add: " + selected_color)
+	// 	dot_colors_selector.append(new Option(selected_color, n_options+1, true, true)).trigger("change");
+	// 	//setTimeout(function(){
+	// 	//	update_dot_colors();
+	// 	//},100);
+	// }
+
+	function add_dot_color2(){
+		var color_selector = $("#dot-colors-selector");
+		//var new_option = $("option");
+		//new_option.attr("value", $("#dot-color-picker").val());
+		var selected_color = $("#dot-color-picker").val();
+		color_selector.append("<option value='" + selected_color + "' selected='selected'>" + selected_color + "</option>");
+		color_selector.change();
+	}
+
+	function update_dot_colors(){
+		var select_elements = $("li.select2-selection__choice");
+		for (var i = 0; i < select_elements.length; i++){
+			this_elem = $(select_elements[i]);
+			console.log("Changing color of elem " + this_elem.attr("data-select2-id") +  " to " + this_elem.attr("title"))
+			this_elem.css("background-color", "#" + this_elem.attr("title"));
+		}
+	}
+
 	$(document).ready(function(){
+		// Initialize dot colors selector
+	
+		$("#dot-colors-selector").select2({
+			width: 'resolve'
+		});
+		$("#dot-colors-selector").on("change", function(e){
+		// $(".select2-selection__rendered").on("change", function(e){
+			console.log("color selector changed");
+			setTimeout(function(){
+				var select_elements = $("li.select2-selection__choice");
+				for (var i = 0; i < select_elements.length; i++){
+					this_elem = $(select_elements[i]);
+					console.log("Changing color of elem " + this_elem.attr("data-select2-id") +  " to " + this_elem.attr("title"))
+					this_elem.css("background-color", "#" + this_elem.attr("title"));
+				}
+			},300);
+		});
+
 		// Forced depth switch behavior
 		$("#force-depth-switch").change(function(){
 			if ($(this).is(":checked")){
