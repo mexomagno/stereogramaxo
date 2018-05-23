@@ -1,1 +1,7 @@
 .idea
+.*.json
+*.pyc
+*.log
+ENV
+ENV/*
+WEB/out
