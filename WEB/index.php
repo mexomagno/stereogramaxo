@@ -331,7 +331,7 @@
 	$(document).foundation();
 
 	function log(message){
-		console.log("response: " + message);
+		// console.log("response: " + message);
 		// $("#debug-div").text(message);
 	}
 
@@ -391,12 +391,12 @@
 		});
 		$("#dot-colors-selector").on("change", function(e){
 		// $(".select2-selection__rendered").on("change", function(e){
-			console.log("color selector changed");
+			// console.log("color selector changed");
 			setTimeout(function(){
 				var select_elements = $("li.select2-selection__choice");
 				for (var i = 0; i < select_elements.length; i++){
 					this_elem = $(select_elements[i]);
-					console.log("Changing color of elem " + this_elem.attr("data-select2-id") +  " to " + this_elem.attr("title"))
+					// console.log("Changing color of elem " + this_elem.attr("data-select2-id") +  " to " + this_elem.attr("title"))
 					this_elem.css("background-color", "#" + this_elem.attr("title"));
 				}
 			},300);
