@@ -31,8 +31,8 @@ nfiles = len(dirlist)
 for file in dirlist:
 	if os.path.isdir(folder+"/"+file):
 		continue
-	i = makeStereogram(folder+"/"+file,pattern,"we")
-	saveToFile(i,"frame_{}".format(count),savefolder = (folder+OUTFOLDER_SUFIX))
+	i = make_stereogram(folder + "/" + file, pattern, "we")
+	save_to_file(i, "frame_{}".format(count), savefolder = (folder + OUTFOLDER_SUFIX))
 	print "{} de {} listos".format((count),nfiles)
 	count+=1
 print "Creando video..."

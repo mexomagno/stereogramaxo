@@ -1,0 +1,15 @@
+TODO:
+
+[DONE]- Show selected file name in panel
+[DONE]- Validate fields in client
+[DONE]- Receive files in PHP
+[DONE]- Validate server side
+[DONE]- Parse inputs as args for script
+[DONE]- Pretty way to display and offer download image on result
+[DONE]- Implement dots settings
+	[DONE]* dot probability
+	[DONE]* Background color
+	[DONE]* dot colors
+[DONE]- Fix generator: fix cross-eyed bug
+- Show preset images on gui
+[DONE]- Fix web dot settings validation (don't send if pattern is selected)
