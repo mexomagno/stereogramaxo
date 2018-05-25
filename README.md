@@ -6,8 +6,7 @@ It is written in python for the sake of simplicity, and relays on the active PIL
 
 ## Examples:
 
-<img src="https://raw.githubusercontent.com/mexomagno/stereogramaxo/mcastro/web_interface/three_sharks.png" alt="sharks" width="750px;">
-
+![sharks](three_sharks.png)
 
 ## Usage:
 
@@ -66,9 +65,11 @@ On success, the resulting image will be stored inside the specified output folde
 
 As a convenience feature, I also implemented a simple web gui to interact with the script, as well as a PHP backend script to interface between the python script and the GUI.
 
-
+![web gui](web_gui.png)
 
 You can access to all the cli features. The resulting image is displayed in a modal over the form.
+
+![web gui](web_gui2.png)
 
 I plan to host this myself in the future...
 
