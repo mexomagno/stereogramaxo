@@ -442,7 +442,7 @@ def obtain_args():
     dotprops_arg_group.add_argument("--dot-prob", help="Dot apparition probability", type=_restricted_unit)
     dotprops_arg_group.add_argument("--dot-bg-color", help="Background color", type=_valid_color_string)
     dotprops_arg_group.add_argument("--dot-colors", help="Colors of dots", type=_valid_colors_list)
-    arg_parser.add_argument("--blur", "-b", help="Gaussian blur ammount", type=_restricted_blur, default=2)
+    arg_parser.add_argument("--blur", "-b", help="Gaussian blur ammount", type=_restricted_blur)
     arg_parser.add_argument("--forcedepth", help="Force max depth to use", type=_restricted_unit)
     arg_parser.add_argument("--output", "-o", help="Directory where to store the results", type=_existent_directory)
     args = arg_parser.parse_args()
@@ -452,6 +452,8 @@ def obtain_args():
         arg_parser.error("--dot-bg-color only makes sense when --dots is set")
     if args.dot_colors and not args.dots:
         arg_parser.error("--dot-colors only makes sense when --dots is set")
+    if not args.blur:
+        args.blur = 2 if args.depthmap else 10
     return args
 
 
