@@ -22,6 +22,7 @@ PROGRAM_VERSION = "2.0"
 
 SUPPORTED_IMAGE_EXTENSIONS = [".png", ".jpeg", ".bmp", ".eps", ".gif", ".jpg", ".im", ".msp", ".pcx", ".ppm", ".spider", ".tiff", ".webp", ".xbm"]
 DEFAULT_DEPTHTEXT_FONT = "freefont/FreeSansBold"
+FONT_ROOT = "/usr/share/fonts/truetype"
 DEFAULT_OUTPUT_EXTENSION = SUPPORTED_IMAGE_EXTENSIONS[0]
 # CONSTANTS
 DMFOLDER = "depth_maps"
@@ -29,7 +30,6 @@ PATTERNFOLDER = "patterns"
 SAVEFOLDER = "saved"
 
 # SETTINGS
-SIZE = (800, 600)  # px
 MAX_DIMENSION = 1500  # px
 PATTERN_FRACTION = 8.0
 OVERSAMPLE = 1.8
@@ -195,7 +195,7 @@ def redistribute_grays(img_object, gray_height):
 def make_stereogram(parsed_args):
     # Load or create stereogram depthmap
     if parsed_args.text:
-        dm_img = make_depth_text(parsed_args.text, DEFAULT_DEPTHTEXT_FONT)
+        dm_img = make_depth_text(parsed_args.text, parsed_args.font)
     else:
         dm_img = load_file(parsed_args.depthmap, "L")
     # Apply gaussian blur if needed
@@ -244,9 +244,18 @@ def make_stereogram(parsed_args):
         pixels = pattern_strip_img.load()
         dot_prob = parsed_args.dot_prob if parsed_args.dot_prob else 0.4
         if parsed_args.dot_colors:
-            color_tuples = [_hex_color_to_tuple(s) for s in parsed_args.dot_colors.split(",")]
+            hex_tuples = list()
+            for hex_str in parsed_args.dot_colors.split(','):
+                if re.match(r'.+x\d+', hex_str):
+                    # multiplier
+                    factor = int(re.sub(r'.*x', '', hex_str))
+                    hex_tuples.extend([re.sub(r'x\d+', '', hex_str)]*factor)
+                else:
+                    hex_tuples.append(hex_str)
+            color_tuples = [_hex_color_to_tuple(hex) for hex in hex_tuples]
         else:
             color_tuples = [(255, 0, 0), (255, 255, 0), (200, 0, 255)]
+        log.d("Colors to use for dots: {}".format(color_tuples))
         for y in range(pattern_strip_img.size[1]):
             for x in range(pattern_width):
                 if random() < dot_prob:
@@ -286,7 +295,7 @@ def make_stereogram(parsed_args):
     return canvas_img
 
 
-def make_depth_text(text, font=DEFAULT_DEPTHTEXT_FONT):
+def make_depth_text(text, font=DEFAULT_DEPTHTEXT_FONT, canvas_size=(800, 600)):
     """
     Makes a text depthmap
 
@@ -296,25 +305,30 @@ def make_depth_text(text, font=DEFAULT_DEPTHTEXT_FONT):
         Text to generate
     font : str
         Further font specification
+    canvas_size: tuple
+        Generated canvas size
 
     Returns
     -------
     PIL.Image.Image
         Generated depthmap image
     """
-    fontroot = "/usr/share/fonts/truetype"
-    fontdir = "{}/{}.ttf".format(fontroot, font)
+    # TODO: Support for multiline text
+    # TODO: Fix font size only, derive canvas size later
+
+
+    fontpath = font if os.path.isabs(font) else "{}/{}.ttf".format(FONT_ROOT, font)
     # Create image (grayscale)
-    i = im.new('L', SIZE, "black")
+    i = im.new('L', canvas_size, "black")
     # Draw text with appropriate gray level
     font_size = 1
-    fnt = imf.truetype(fontdir, font_size)
-    while fnt.getsize(text)[0] < SIZE[0]*0.9 and fnt.getsize(text)[1] < SIZE[1]*0.9:
+    fnt = imf.truetype(fontpath, font_size)
+    while fnt.getsize(text)[0] < canvas_size[0]*0.9 and fnt.getsize(text)[1] < canvas_size[1]*0.9:
         font_size += 1
-        fnt = imf.truetype(fontdir, font_size)
+        fnt = imf.truetype(fontpath, font_size)
     imd.Draw(i).text(
-        ((SIZE[0] / 2 - fnt.getsize(text)[0] / 2,
-          SIZE[1] / 2 - fnt.getsize(text)[1] / 2)),
+        ((canvas_size[0] / 2 - fnt.getsize(text)[0] / 2,
+          canvas_size[1] / 2 - (fnt.getsize(text)[1] / 2)*1.2)),
         text, font=fnt,
         fill=((int)(255.0)))
     return i
@@ -424,13 +438,14 @@ def obtain_args():
 
     def _valid_colors_list(s):
         colors = s.strip().split(",")
-        validated_colors = [_valid_color_string(color_string) for color_string in colors]
+        validated_colors = [_valid_color_string(re.sub(r'x\d+', '', color_string)) for color_string in colors]
         return s
 
     arg_parser = argparse.ArgumentParser(description="Stereogramaxo: An autostereogram generator")
     depthmap_arg_group = arg_parser.add_mutually_exclusive_group(required=True)
     depthmap_arg_group.add_argument("--depthmap", "-d", help="Path to a depthmap image file", type=_supported_image_file)
     depthmap_arg_group.add_argument("--text", "-t", help="Generate a depthmap with text", type=str)
+
     pattern_arg_group = arg_parser.add_mutually_exclusive_group(required=True)
     pattern_arg_group.add_argument("--dots", help="Generate a dot pattern for the background", action="store_true")
     pattern_arg_group.add_argument("--pattern", "-p", help="Path to an image file to use as background pattern",
@@ -441,10 +456,17 @@ def obtain_args():
     dotprops_arg_group = arg_parser.add_argument_group()
     dotprops_arg_group.add_argument("--dot-prob", help="Dot apparition probability", type=_restricted_unit)
     dotprops_arg_group.add_argument("--dot-bg-color", help="Background color", type=_valid_color_string)
-    dotprops_arg_group.add_argument("--dot-colors", help="Colors of dots", type=_valid_colors_list)
+    dotprops_arg_group.add_argument("--dot-colors",
+                                    help="Comma separated list of hex colors. Supports multipliers, "
+                                         "i.e.: fff,ff0000x3 results in 3 times more ff0000 than fff",
+                                    type=_valid_colors_list)
     arg_parser.add_argument("--blur", "-b", help="Gaussian blur ammount", type=_restricted_blur)
     arg_parser.add_argument("--forcedepth", help="Force max depth to use", type=_restricted_unit)
     arg_parser.add_argument("--output", "-o", help="Directory where to store the results", type=_existent_directory)
+    arg_parser.add_argument("--font", "-f",
+                            help="Truetype font file to use. If relative path, font root is '{}'"
+                            .format(FONT_ROOT),
+                            default=DEFAULT_DEPTHTEXT_FONT)
     args = arg_parser.parse_args()
     if args.dot_prob and not args.dots:
         arg_parser.error("--dot-prob only makes sense when --dots is set")
@@ -453,7 +475,9 @@ def obtain_args():
     if args.dot_colors and not args.dots:
         arg_parser.error("--dot-colors only makes sense when --dots is set")
     if not args.blur:
-        args.blur = 2 if args.depthmap else 10
+        args.blur = 2 if args.depthmap else 8
+    if args.font and not args.text:
+        arg_parser.error("--font only makes sense when --text is used")
     return args
 
 
@@ -508,3 +532,4 @@ This is called Hidden Surface Removal.
 """
 
 # TODO: Provide option to match pattern height
+# TODO: Put generation options as image metadata
