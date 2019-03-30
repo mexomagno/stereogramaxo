@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import re
+import codecs
 import time
 from random import choice, random
 
@@ -42,11 +43,24 @@ def show_img(i):
 
 
 def _hex_color_to_tuple(s):
+    """
+    Parses a hex color string to a RGB triplet.
+
+    Parameters
+    ----------
+    s: str
+        Valid hex color string. Three-chars supported
+
+    Returns
+    -------
+    tuple: Equivalent RGB triplet
+
+    """
     if not re.search(r'^#?(?:[0-9a-fA-F]{3}){1,2}$', s):
         return (0, 0, 0)
     if len(s) == 3:
         s = "".join(["{}{}".format(c, c) for c in s])
-    return tuple(ord(c) for c in s.decode('hex'))
+    return tuple(int(c) for c in codecs.decode(s, 'hex'))  # s.decode('hex'))
 
 
 def make_background(size, filename="", dots_prob=None, bg_color="000", dot_colors_string=None):
@@ -78,7 +92,7 @@ def make_background(size, filename="", dots_prob=None, bg_color="000", dot_color
     if filename != "" and filename != "dots":
         pattern = load_file((get_random("pattern") if filename == "R" else filename))
         if pattern is None:
-            #log.d("Error al cargar '{}'. Generando con puntos aleatorios.".format(filename))
+            log.w("Error loading patter '{}'. Will generate using random dots".format(filename))
             filename = ""
         else:
             is_image = True
@@ -178,7 +192,7 @@ def redistribute_grays(img_object, gray_height):
     return img_object
 
 
-def make_stereogram2(parsed_args):
+def make_stereogram(parsed_args):
     # Load or create stereogram depthmap
     if parsed_args.text:
         dm_img = make_depth_text(parsed_args.text, DEFAULT_DEPTHTEXT_FONT)
@@ -257,114 +271,19 @@ def make_stereogram2(parsed_args):
 
             dm_start_x += direction*pattern_strip_img.size[0]
 
-
     # paste first pattern
     dm_center_x = dm_img.size[0]/2
     canvas_img.paste(pattern_strip_img, (int(dm_center_x), 0, int(dm_center_x + pattern_width), canvas_img.size[1]))
     if not parsed_args.wall:
-        canvas_img.paste(pattern_strip_img, (dm_center_x - pattern_width, 0, dm_center_x, canvas_img.size[1]))
+        canvas_img.paste(pattern_strip_img, (int(dm_center_x - pattern_width), 0, int(dm_center_x), canvas_img.size[1]))
     shift_pixels(dm_center_x, dm_img, canvas_img, 1)
     shift_pixels(dm_center_x + pattern_width, dm_img, canvas_img, -1)
-
 
     # Bring back from oversample
     if parsed_args.pattern:
         canvas_img = canvas_img.resize(((int)(canvas_img.size[0] / OVERSAMPLE), (int)(canvas_img.size[1] / OVERSAMPLE)),
                                        im.LANCZOS)  # NEAREST, BILINEAR, BICUBIC, LANCZOS
     return canvas_img
-
-
-def make_stereogram(parsed_args):
-    """
-    Actually generates the stereogram.
-
-    Parameters
-    ----------
-    parsed_args : Namespace
-        Parsed options
-
-    Returns
-    -------
-    PIL.Image.Image :
-        Generated stereogram image
-    """
-    # Load stereogram depthmap
-    if parsed_args.text:
-        dm = make_depth_text(parsed_args.text, DEFAULT_DEPTHTEXT_FONT)
-    else:
-        dm = load_file(parsed_args.depthmap, 'L')
-    if dm is None:
-        #log.d("Aborting")
-        exit(1)
-
-    # Apply gaussian blur filter
-    dm = dm.filter(imflt.GaussianBlur(parsed_args.blur))
-
-    # Redistribute grayscale range
-    if parsed_args.text:
-        dm = redistribute_grays(dm, parsed_args.forcedepth if parsed_args.forcedepth is not None else 0.5)
-    elif parsed_args.forcedepth:
-        dm = redistribute_grays(dm, parsed_args.forcedepth)
-
-    # Create base pattern
-    bg_image_object, pattern_is_img = make_background(size=dm.size,
-                                                      filename="" if parsed_args.dots else parsed_args.pattern,
-                                                      dots_prob=parsed_args.dot_prob,
-                                                      bg_color=parsed_args.dot_bg_color,
-                                                      dot_colors_string=parsed_args.dot_colors)
-
-    # Oversample on image-pattern based background (NOT dots, bad results!)
-    if pattern_is_img:
-        dm = dm.resize(((int)(dm.size[0] * OVERSAMPLE), (int)(dm.size[1] * OVERSAMPLE)))
-        bg_image_object = bg_image_object.resize(((int)(bg_image_object.size[0] * OVERSAMPLE), (int)(bg_image_object.size[1] * OVERSAMPLE)))
-
-    pattern_width = (int)(dm.size[0]/float(PATTERN_FRACTION))
-    bg_pix = bg_image_object.load()
-    dm_pix = dm.load()
-    # Empirically obtained. In some place they went from 120px on the shallowest point to 90px (25%)
-    depth_factor = pattern_width * SHIFT_RATIO
-
-    if not LEFT_TO_RIGHT:
-        # Copy pattern to the middle
-        bg_middle_x = bg_image_object.size[0] / 2
-        pattern_rect = (0, 0, pattern_width, bg_image_object.size[1])
-        pattern_strip = bg_image_object.crop(pattern_rect)
-        # bg_image_object = im.new("RGB", (bg_image_object.size[0], bg_image_object.size[1]), color="black")
-        bg_image_object.paste(pattern_strip, (bg_middle_x - pattern_width, 0, bg_middle_x, bg_image_object.size[1]))
-
-    # Walk over depthmap
-    for y in range(dm.size[1]):
-        if LEFT_TO_RIGHT:
-            for x in range(pattern_width, bg_image_object.size[0]):
-                # From left to right
-                this_x = min(max(x - pattern_width, 0), dm.size[0]-1)
-                shift = (dm_pix[this_x, y] if parsed_args.wall else (255 - dm_pix[this_x, y])) / 255.0 * depth_factor
-                bg_pix[x, y] = bg_pix[x - pattern_width + shift, y]
-        else:
-            # Walk to the right
-            for x in range(bg_middle_x, bg_image_object.size[0]):
-                this_gray = dm_pix[min(max(x - pattern_width, 0), dm.size[0]-1), y]
-                # Center to right
-                this_gray = this_gray if parsed_args.wall else 255 - this_gray
-                shift = this_gray / 255.0 * depth_factor
-                bg_pix[x, y] = bg_pix[x - pattern_width + shift, y]
-
-            # Walk to the left
-            for x in range(bg_middle_x - 1, pattern_width - 1, -1):
-                this_gray = dm_pix[x, y]
-                # Center to left
-                this_gray = this_gray if parsed_args.wall else (255 - this_gray)
-                shift = this_gray / 255.0 * depth_factor
-                bg_pix[x, y] = bg_pix[x + pattern_width - shift, y]
-
-    if not LEFT_TO_RIGHT:
-        bg_image_object.paste(bg_image_object.crop((pattern_width, 0, 2 * pattern_width, bg_image_object.size[1])), pattern_rect)
-
-    # Oversample result and bring back. Smooths everything.
-    if pattern_is_img:
-        bg_image_object = bg_image_object.resize(((int)(bg_image_object.size[0] / OVERSAMPLE), (int)(bg_image_object.size[1] / OVERSAMPLE)),
-                                                 im.LANCZOS)  # NEAREST, BILINEAR, BICUBIC, LANCZOS
-    return bg_image_object
 
 
 def make_depth_text(text, font=DEFAULT_DEPTHTEXT_FONT):
@@ -429,7 +348,7 @@ def save_to_file(img_object, output_dir=None):
         try:
             os.mkdir(savefolder)
         except IOError as e:
-            # print "Cannot create file: {}".format(e)
+            log.e("Cannot create file: {}".format(e))
             return False, "Could not create output directory '{}': {}".format(savefolder, e)
     outfile_name = u"{date}{ext}".format(
         date=time.strftime("%Y%m%d-%H%M%S", time.localtime()),
@@ -438,10 +357,10 @@ def save_to_file(img_object, output_dir=None):
     out_path = os.path.join(savefolder, outfile_name)
     try:
         r = img_object.save(out_path)
-        # print "Saved file in {}".format(out_path)
+        log.d("Saved file in {}".format(out_path))
         return True, out_path
     except IOError as e:
-        # log.d("Error trying to save image: {}".format(e))
+        log.e("Error trying to save image: {}".format(e))
         return False, "Could not create file '{}': {}".format(out_path, e)
 
 
@@ -451,7 +370,7 @@ def load_file(name, type=''):
         if type != "":
             i = i.convert(type)
     except IOError as msg:
-        #log.d("Picture couln't be loaded '{}': {}".format(name, msg))
+        log.e("Picture couln't be loaded '{}': {}".format(name, msg))
         return None
     # Resize if too big
     if max(i.size) > MAX_DIMENSION:
@@ -459,7 +378,7 @@ def load_file(name, type=''):
         old_max = i.size[max_dim]
         new_max = MAX_DIMENSION
         factor = new_max/float(old_max)
-        #print "Image is big: {}. Resizing by a factor of {}".format(i.size, factor)
+        log.d("Image is big: {}. Resizing by a factor of {}".format(i.size, factor))
         i = i.resize((int(i.size[0]*factor), int(i.size[1]*factor)))
     return i
 
@@ -508,8 +427,7 @@ def obtain_args():
         validated_colors = [_valid_color_string(color_string) for color_string in colors]
         return s
 
-
-    arg_parser = argparse.ArgumentParser(description="Stereogramaxo: An autostereogram generator, by Mexomagno")
+    arg_parser = argparse.ArgumentParser(description="Stereogramaxo: An autostereogram generator")
     depthmap_arg_group = arg_parser.add_mutually_exclusive_group(required=True)
     depthmap_arg_group.add_argument("--depthmap", "-d", help="Path to a depthmap image file", type=_supported_image_file)
     depthmap_arg_group.add_argument("--text", "-t", help="Generate a depthmap with text", type=str)
@@ -544,32 +462,38 @@ class _HTTPCode:
 
 
 def return_http_response(code, text):
-    log.d(json.dumps({
+    print(json.dumps({
         "code": code,
         "text": text
     }))
 
 
 def main():
-    log.d("\n\n--- Started creation ---")
+    log.i("--- Started generation ---")
     parsed_args = obtain_args()
-    i = make_stereogram2(parsed_args)
+    log.d("Arguments: ")
+    for key in vars(parsed_args):
+        log.d("\t {}: {}".format(key, getattr(parsed_args, key)))
+    t0 = time.time()
+    i = make_stereogram(parsed_args)
     if not parsed_args.output:
+        log.i("Process finished successfully after {0:.2f}s".format(time.time() - t0))
+        log.i("No output file specified. Showing in temporary preview")
         show_img(i)
-        log.d("No output file specified")
         return
     # print "Saving..."
     success, additional_info = save_to_file(i, parsed_args.output)
     log.d("Finished. Success: {}, Additional info: {}".format(success, additional_info))
     if not success:
+        log.e("Process finished with errors: '{}'".format(additional_info))
         return_http_response(_HTTPCode.INTERNAL_SERVER_ERROR, additional_info)
     else:
+        log.i("Process finished successfully after {0:.2f}s".format(time.time() - t0))
         return_http_response(_HTTPCode.OK, os.path.basename(additional_info))
 
 
 if __name__ == "__main__":
     main()
-
 
 
 
@@ -581,8 +505,4 @@ in the stereogram. They say it can be fixed... but how?
 This is called Hidden Surface Removal.
 """
 
-# TODO: Fix Cross-eyed bug
-# TODO: Fix text left cropping
-# TODO: Try to fix broken fin on shark (Hidden Surface Removal?)
-# TODO: Provide options for dots settings
 # TODO: Provide option to match pattern height

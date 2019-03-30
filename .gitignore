@@ -2,4 +2,5 @@
 .*.json
 *.pyc
 *.log
+*.log.*
 WEB/out
