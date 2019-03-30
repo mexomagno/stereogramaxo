@@ -3,8 +3,6 @@
 
 import argparse
 import json
-import logging
-from logging.handlers import RotatingFileHandler
 import os
 import re
 import time
@@ -15,6 +13,8 @@ from PIL import Image as im
 from PIL import ImageDraw as imd
 from PIL import ImageFilter as imflt
 from PIL import ImageFont as imf
+
+from log import Log as log
 
 # Program info
 PROGRAM_VERSION = "2.0"
@@ -36,25 +36,6 @@ SHIFT_RATIO = 0.3
 LEFT_TO_RIGHT = False  # Defines how the pixels will be shifted (left to right or center to sides)
 DOT_OVER_PATTERN_PROBABILITY = 0.3  # Defines how often dots are chosen over pattern on random pattern selection
 
-LOGFILE = "logs/stereogramaxo.log"
-
-logger = logging.getLogger('stereogramaxo')
-
-
-def set_logger():
-    logger.setLevel('DEBUG')
-    handler = RotatingFileHandler(LOGFILE, maxBytes=2000, backupCount=2)
-    logger.addHandler(handler)
-
-
-def log(message):
-    logger.debug(message)
-    # try:
-    #     with open(LOGFILE, "w") as logfile:
-    #         logfile.write("[{ts}]: {message}\n".format(ts=time.time(),
-    #                                                  message=message))
-    # except IOError as e:
-    #     print "Exception: {}".format(e)
 
 def show_img(i):
     i.show(command="eog")
@@ -85,7 +66,7 @@ def make_background(size, filename="", dots_prob=None, bg_color="000", dot_color
     Returns
     -------
     """
-    print("colors string: {}".format(dot_colors_string))
+    log.d("colors string: {}".format(dot_colors_string))
     pattern_width = (int)(size[0] / PATTERN_FRACTION)
     # Pattern is a little bit longer than original picture, so everything fits on 3D (eye crossing shrinks the picture horizontally!)
     i = im.new("RGB", (size[0] + pattern_width, size[1]), color=_hex_color_to_tuple(bg_color))
@@ -97,7 +78,7 @@ def make_background(size, filename="", dots_prob=None, bg_color="000", dot_color
     if filename != "" and filename != "dots":
         pattern = load_file((get_random("pattern") if filename == "R" else filename))
         if pattern is None:
-            #print("Error al cargar '{}'. Generando con puntos aleatorios.".format(filename))
+            #log.d("Error al cargar '{}'. Generando con puntos aleatorios.".format(filename))
             filename = ""
         else:
             is_image = True
@@ -313,7 +294,7 @@ def make_stereogram(parsed_args):
     else:
         dm = load_file(parsed_args.depthmap, 'L')
     if dm is None:
-        #print("Aborting")
+        #log.d("Aborting")
         exit(1)
 
     # Apply gaussian blur filter
@@ -382,7 +363,7 @@ def make_stereogram(parsed_args):
     # Oversample result and bring back. Smooths everything.
     if pattern_is_img:
         bg_image_object = bg_image_object.resize(((int)(bg_image_object.size[0] / OVERSAMPLE), (int)(bg_image_object.size[1] / OVERSAMPLE)),
-                                       im.LANCZOS)  # NEAREST, BILINEAR, BICUBIC, LANCZOS
+                                                 im.LANCZOS)  # NEAREST, BILINEAR, BICUBIC, LANCZOS
     return bg_image_object
 
 
@@ -460,7 +441,7 @@ def save_to_file(img_object, output_dir=None):
         # print "Saved file in {}".format(out_path)
         return True, out_path
     except IOError as e:
-        # print("Error trying to save image: {}".format(e))
+        # log.d("Error trying to save image: {}".format(e))
         return False, "Could not create file '{}': {}".format(out_path, e)
 
 
@@ -470,7 +451,7 @@ def load_file(name, type=''):
         if type != "":
             i = i.convert(type)
     except IOError as msg:
-        #print("Picture couln't be loaded '{}': {}".format(name, msg))
+        #log.d("Picture couln't be loaded '{}': {}".format(name, msg))
         return None
     # Resize if too big
     if max(i.size) > MAX_DIMENSION:
@@ -535,7 +516,7 @@ def obtain_args():
     pattern_arg_group = arg_parser.add_mutually_exclusive_group(required=True)
     pattern_arg_group.add_argument("--dots", help="Generate a dot pattern for the background", action="store_true")
     pattern_arg_group.add_argument("--pattern", "-p", help="Path to an image file to use as background pattern",
-                            type=_supported_image_file)
+                                   type=_supported_image_file)
     viewmode_arg_group = arg_parser.add_mutually_exclusive_group(required=True)
     viewmode_arg_group.add_argument("--wall", "-w", help="Wall eyed mode", action="store_true")
     viewmode_arg_group.add_argument("--cross", "-c", help="Cross eyed mode", action="store_true")
@@ -563,27 +544,28 @@ class _HTTPCode:
 
 
 def return_http_response(code, text):
-    print(json.dumps({
+    log.d(json.dumps({
         "code": code,
         "text": text
     }))
 
 
 def main():
-    log("\n\n--- Started creation ---")
+    log.d("\n\n--- Started creation ---")
     parsed_args = obtain_args()
     i = make_stereogram2(parsed_args)
     if not parsed_args.output:
         show_img(i)
-        log("No output file specified")
+        log.d("No output file specified")
         return
     # print "Saving..."
     success, additional_info = save_to_file(i, parsed_args.output)
-    log("Finished. Success: {}, Additional info: {}".format(success, additional_info))
+    log.d("Finished. Success: {}, Additional info: {}".format(success, additional_info))
     if not success:
         return_http_response(_HTTPCode.INTERNAL_SERVER_ERROR, additional_info)
     else:
         return_http_response(_HTTPCode.OK, os.path.basename(additional_info))
+
 
 if __name__ == "__main__":
     main()
